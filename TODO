@@ -6,3 +6,7 @@
 - optimize block/ sizes
 - split into streams
 - split into gpus
+- use tensor cores (cublas) when available
+
+https://developer.nvidia.com/blog/programming-tensor-cores-cuda-9/
+
