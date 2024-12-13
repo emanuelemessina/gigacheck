@@ -1,0 +1,8 @@
+- tiled matrix multiplication
+- strassen matrix multiplication
+- solve for padding to make strassen work (fake padding with index checking, runtime padding?)
+- cutoff condition to switch to classical mm
+- configurable depth level for block checksums
+- optimize block/ sizes
+- split into streams
+- split into gpus
