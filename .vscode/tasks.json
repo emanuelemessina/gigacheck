@@ -1,0 +1,51 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build with make (debug)",
+            "type": "shell",
+            "command": "make",
+            "args": [
+                "CONFIG=debug"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "detail": "Run make with debug configuration"
+        },
+        {
+            "label": "Build with make (release)",
+            "type": "shell",
+            "command": "make",
+            "args": [
+                "CONFIG=release"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "detail": "Run make with release configuration"
+        },
+        {
+            "label": "Clean build",
+            "type": "shell",
+            "command": "make",
+            "args": [
+                "clean"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            },
+            "problemMatcher": [],
+            "detail": "Run make clean to remove built objects"
+        }
+    ]
+}
