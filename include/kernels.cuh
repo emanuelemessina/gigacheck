@@ -1,6 +1,5 @@
 #pragma once
 
-#include "img.h"
 #include <cmath>
 
 #define MAX_THREADS_PER_BLOCK 1024
@@ -23,5 +22,5 @@ inline int blockSize2Side(int blocksize)
 
 namespace cuda
 {
-
+    float** strassen_parallelizing_recursion(float** A, float** B, int rowsA, int colsA, int colsB);
 };
