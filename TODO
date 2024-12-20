@@ -1,12 +1,31 @@
-- tiled matrix multiplication
-- strassen matrix multiplication
-- solve for padding to make strassen work (fake padding with index checking, runtime padding?)
-- cutoff condition to switch to classical mm
-- configurable depth level for block checksums
-- optimize block/ sizes
-- split into streams
-- split into gpus
-- use tensor cores (cublas) when available
+By priority:
 
+- tiled matrix multiplication
+- safe multiplication kernel with checksums and error correction/detection
+- async copy while computing buffering schemes:
+    - AB->C (default)
+    - AB->C // A'B' (double buffering)
+    - AB->C // A'B'->C' (parallel computation)
+- code to introduce errors
+- profile everything
+- can further optimize block sizes, memory... ?
+
+Paper:
+
+- problem statement
+- consideration on which algo to use (we considered strassen but [show calculations of transactions])
+- our orchestration of the kernels and buffers
+- the safe mm operation (how do we use the checksum, how do we correct/detect errors)
+- results (profiling) 
+
+If there is time:
+
+- strassen matrix multiplication
+
+There will be no time:
+
+- use tensor cores (cublas) when available
 https://developer.nvidia.com/blog/programming-tensor-cores-cuda-9/
+- split into gpus
+
 
