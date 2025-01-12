@@ -1,6 +1,5 @@
 #pragma once
 
-#include "img.h"
 #include <cmath>
 
 #define MAX_THREADS_PER_BLOCK 1024
