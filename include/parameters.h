@@ -5,9 +5,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define MAX_THREADS_PER_BLOCK 1024
-#define MAX_BLOCK_SIDE 32
-
 // Max allowed dimension for a tile (larger tiles make more advantage of shared memory)
 #define tileDim dim3(32, 32)
 
