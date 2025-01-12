@@ -3,6 +3,8 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 
+// Only works for square matrices
+
 __global__ void kernel(float* A, float* B, float* C, size_t N)
 {
     /*
