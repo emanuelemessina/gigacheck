@@ -59,7 +59,7 @@ float* alloc(size_t rows, size_t cols, bool initialize)
 {
     float* tmp = (float*)malloc(rows * cols * sizeof(float));
 
-    if (alloc)
+    if (initialize)
     {
         for (int r = 0; r < rows; r++)
             for (int c = 0; c < cols; c++)
