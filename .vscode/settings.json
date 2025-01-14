@@ -4,7 +4,7 @@
         "editor.defaultFormatter": "xaver.clang-format"
     },
     "[cuda]": {
-        "editor.defaultFormatter": "xaver.clang-format"
+        "editor.defaultFormatter": "xaver.clang-format",
     },
     "files.associations": {
         "*.php": "php",
