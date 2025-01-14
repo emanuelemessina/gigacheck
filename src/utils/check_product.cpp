@@ -1,5 +1,5 @@
-#include "utils/check_product.h"
-#include "utils/inferred_matrix_sizes.h"
+#include "inferred_matrix_sizes.h"
+#include "utils.h"
 
 void check(float* A, float* B, float* C, int ra, int ca, int cb)
 {

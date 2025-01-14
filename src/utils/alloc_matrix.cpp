@@ -1,6 +1,8 @@
-#include "utils/alloc_matrix.h"
+#include "utils.h"
 
-float* alloc(size_t rows, size_t cols, bool initialize)
+#include <stdlib.h>
+
+float* utils::matrix::alloc(int rows, int cols, bool initialize)
 {
     float* tmp = (float*)malloc(rows * cols * sizeof(float));
 

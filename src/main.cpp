@@ -1,4 +1,5 @@
-#include "main.h"
+#include "cli.h"
+#include "programs.h"
 
 int main(int argc, char* argv[])
 {
@@ -14,6 +15,8 @@ int main(int argc, char* argv[])
         .option({"r", "redundancy", 0, "Redundancy Level"})
         .option({"e", "errors", 0, "Introduced errors amount"});
 
+    // cli parse
+
     cli.parse(argc, argv);
 
     auto help = cli.get("help");
@@ -24,31 +27,21 @@ int main(int argc, char* argv[])
         return 0;
     }
 
+    // launch program(s)
+
     int result = 0;
+
+    // gigacheck
 
     auto redundancy = cli.get("redundancy").getValue<int>();
     auto errors = cli.get("errors").getValue<int>();
     auto ra = cli.get("rows-a").getValue<int>();
     auto ca = cli.get("cols-a").getValue<int>();
     auto cb = cli.get("cols-b").getValue<int>();
-    auto rb = ca;
-    auto rc = ra;
-    auto cc = cb;
 
-    float* A = alloc(ra, ca, true);
-    float* B = alloc(rb, cb, true);
-    float* C = alloc(rc, cc, false);
+    result = programs::gigacheck(ra, ca, cb);
 
-    cuda::tiled_matmul(A, B, C, ra, ca, cb);
-    printf("Computation finished\n");
+    // end
 
-    check(A, B, C, ra, ca, cb);
-    printf("Check finished\n");
-
-    print(A, ra, ca);
-    print(B, rb, cb);
-    print(C, rc, cc);
-
-    // result = launch
     return result;
 }

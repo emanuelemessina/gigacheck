@@ -13,5 +13,5 @@
 
 namespace cuda
 {
-    void tiled_matmul(float* A, float* B, float* C, size_t rows_A, size_t cols_A, size_t cols_B);
+    void tiled_matmul(float* A, float* B, float* C, int rows_A, int cols_A, int cols_B);
 };

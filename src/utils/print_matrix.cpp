@@ -1,5 +1,5 @@
-#include "utils/print_matrix.h"
-#include "utils/inferred_matrix_sizes.h"
+#include "inferred_matrix_sizes.h"
+#include "utils.h"
 
 void print(float* mat, size_t rows, size_t cols)
 {
