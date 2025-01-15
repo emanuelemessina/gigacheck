@@ -1,5 +1,6 @@
 By priority:
 
+- test other reduction impl, eliminate slower
 - safe multiplication kernel with checksums and error correction/detection
 - async copy while computing buffering schemes:
     - AB->C (default)

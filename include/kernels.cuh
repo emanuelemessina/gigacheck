@@ -1,5 +1,10 @@
 #pragma once
 
+// default blockSize for tiled operations
+#define tileDim dim3(32, 32)
+
+#include <stdio.h>
+
 #define CUDA_CHECK                                                 \
     {                                                              \
         cudaError_t error = cudaGetLastError();                    \
@@ -10,13 +15,23 @@
 #define CEIL_DIV(numerator, denominator) (int)((numerator + denominator - 1) / denominator)
 
 /**
- * @brief Calculates a bank-conflict-free size in bytes for float shared memory from a dim3 (blocksize).
+ * @brief Calculates a bank-conflict-free size in bytes for float shared memory from a dimension along an axis.
  *
- * @param[in]  dim  the blocksize
+ * @param[in]  dim  eg. 32 would output (32 + 1) * sizeof(float)
  */
-inline int dim3ToBytes(dim3 dim)
+inline int linearDimToBytes(int dim)
 {
-    return (dim.x + (dim.x % 2 == 0 ? 1 : 0)) * dim.y * sizeof(float);
+    return (dim + (dim % 2 == 0 ? 1 : 0)) * sizeof(float);
+}
+
+/**
+ * @brief Calculates a bank-conflict-free size in bytes for float shared memory from a 2d tileDim (default blocksize).
+ *
+ * @param[in]  dim2
+ */
+inline int dim2ToBytes(dim3 dim2)
+{
+    return linearDimToBytes(dim2.x) * dim2.y;
 }
 
 namespace kernels

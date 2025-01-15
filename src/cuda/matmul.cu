@@ -1,6 +1,6 @@
 #include "inferred_matrix_sizes.h"
 #include "kernels.cuh"
-#include "parameters.h"
+#include "timer.h"
 
 namespace cuda
 {
@@ -12,20 +12,31 @@ namespace cuda
         cudaMalloc(&dB, SIZE_B_BYTES);
         cudaMalloc(&dC, SIZE_C_BYTES);
 
-        cudaMemcpy(dA, A, SIZE_A_BYTES, cudaMemcpyHostToDevice);
-        cudaMemcpy(dB, B, SIZE_B_BYTES, cudaMemcpyHostToDevice);
+        {
+            ScopedTimer timer("A,B to device", POST);
+            cudaMemcpy(dA, A, SIZE_A_BYTES, cudaMemcpyHostToDevice);
+            cudaMemcpy(dB, B, SIZE_B_BYTES, cudaMemcpyHostToDevice);
+        }
 
-        dim3 tiles(CEIL_DIV(COLS_C, tileDim.x), CEIL_DIV(ROWS_C, tileDim.y));
+        {
+            ScopedTimer timer("matmul kernel", POST);
 
-        dim3 gridSize = tiles;
-        dim3 blockSize = tileDim;
-        int sharedMemSize = 2 * dim3ToBytes(blockSize);
+            dim3 tiles(CEIL_DIV(COLS_C, tileDim.x), CEIL_DIV(ROWS_C, tileDim.y));
 
-        kernels::tiled_matmul<<<gridSize, blockSize, sharedMemSize>>>(dA, dB, dC, rows_A, cols_A, cols_B);
-        cudaDeviceSynchronize();
-        CUDA_CHECK
+            dim3 gridSize = tiles;
+            dim3 blockSize = tileDim;
+            int sharedMemSize = 2 * dim2ToBytes(blockSize);
 
-        cudaMemcpy(C, dC, SIZE_C_BYTES, cudaMemcpyDeviceToHost);
+            kernels::tiled_matmul<<<gridSize, blockSize, sharedMemSize>>>(dA, dB, dC, rows_A, cols_A, cols_B);
+
+            cudaDeviceSynchronize();
+            CUDA_CHECK
+        }
+
+        {
+            ScopedTimer timer("dC to host", POST);
+            cudaMemcpy(C, dC, SIZE_C_BYTES, cudaMemcpyDeviceToHost);
+        }
 
         cudaFree(dA);
         cudaFree(dB);

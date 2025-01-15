@@ -1,7 +1,5 @@
 #pragma once
 
-#include "parameters.h"
-
 namespace cuda
 {
     /**
@@ -27,6 +25,7 @@ namespace cuda
      * @param[in]   rows_A  #rows in A
      * @param[in]   cols_A  #cols in A
      * @param[in]   cols_B  #cols in B
+     * @param[in]   print_intermediate  whether to print the matrix with checksums
      *
      */
     void matmul_ec(float* A, float* B, float* C, int rows_A, int cols_A, int cols_B);

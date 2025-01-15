@@ -1,29 +1,43 @@
 #include "cuda.cuh"
+#include "globals.h"
 #include "matrix.h"
 #include "programs.h"
+#include "timer.h"
 
 namespace programs
 {
-    int gigacheck(int ra, int ca, int cb)
+    int gigacheck(int ra, int ca, int cb, bool vanilla, bool check)
     {
-        auto rb = ca;
-        auto rc = ra;
-        auto cc = cb;
-
         float* A = matrix::alloc(ra, ca, true);
         float* B = matrix::alloc(rb, cb, true);
-        float* C;
+        float* C = matrix::alloc(rc, cc, false);
 
-        cuda::matmul(A, B, C, ra, ca, cb);
-        printf("Computation finished\n");
+        if (globals::printMatrices)
+        {
+            matrix::print(A, ra, ca, "A");
+            matrix::print(B, rb, cb, "B");
+        }
 
-        matrix::check_product(A, B, C, ra, ca, cb);
-        printf("Check finished\n");
+        {
+            ScopedTimer timer("GPU mul", PRE);
 
-        matrix::print(A, ra, ca);
-        matrix::print(B, rb, cb);
-        matrix::print(C, rc, cc);
+            if (vanilla)
+                cuda::matmul(A, B, C, ra, ca, cb);
+            else
+                cuda::matmul_ec(A, B, C, ra, ca, cb);
+        }
 
-        return 0;
+        int result = 0;
+
+        if (check)
+        {
+            ScopedTimer timer("CPU mul check", PRE);
+            result = matrix::check_product(A, B, C, ra, ca, cb);
+        }
+
+        if (globals::printMatrices)
+            matrix::print(C, rc, cc, "C");
+
+        return result;
     }
 }

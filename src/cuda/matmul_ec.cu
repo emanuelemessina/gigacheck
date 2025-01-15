@@ -1,15 +1,13 @@
+#include "globals.h"
 #include "inferred_matrix_sizes.h"
 #include "kernels.cuh"
 #include "matrix.h"
+#include "timer.h"
 
 namespace cuda
 {
     void matmul_ec(float* A, float* B, float* C, int rows_A, int cols_A, int cols_B)
     {
-        // alloc the result matrix
-
-        C = matrix::alloc(ROWS_C, COLS_C, false);
-
         // allocate device matrices with extra space for checksums A(m+1xn)B(nxp+1) = C(m+1xp+1)
 
         int size_A_ec = SIZE_A_BYTES + cols_A * sizeof(float);
@@ -32,57 +30,101 @@ namespace cuda
             cudaStreamCreate(&streams[i]);
         }
 
-        // copy matrices to device
+        {
+            ScopedTimer timer("A,B to device", POST);
 
-        cudaMemcpy(dA, A, size_A_ec, cudaMemcpyHostToDevice);
-        cudaMemcpy(dB, B, size_B_ec, cudaMemcpyHostToDevice);
+            // copy A to device
+
+            cudaMemcpyAsync(dA, A, SIZE_A_BYTES, cudaMemcpyHostToDevice, streams[0]);
+
+            // copy B to device
+
+            for (int r = 0; r < ROWS_B; ++r)
+            {
+                cudaMemcpyAsync(dB + r * (cols_B + 1), B + r * cols_B, cols_B * sizeof(float), cudaMemcpyHostToDevice, streams[r % numStreams]);
+            }
+
+            cudaDeviceSynchronize();
+        }
 
         // define threads organization
-
-        dim3 gridSize(CEIL_DIV(COLS_C + 1, tileDim.x), CEIL_DIV(ROWS_C + 1, tileDim.y)); // we actually don't need the +1 for the checksums but it's no big deal in exchange for cleaner code
-        dim3 blockSize = tileDim;
-        int sharedMemSize = dim3ToBytes(blockSize);
+        dim3 gridSize;
+        dim3 blockSize;
+        int sharedMemSize;
 
         // calculate checksums in parallel on different streams
 
-        // calculate col checksums for A
-        kernels::compute_checksums<<<gridSize, blockSize, sharedMemSize>>>(dA, rows_A, cols_A, CHECKSUM_COMPUTE_COL);
-        // calculate row checksums for B
-        kernels::compute_checksums<<<gridSize, blockSize, sharedMemSize, streams[0]>>>(dB, ROWS_B, cols_B, CHECKSUM_COMPUTE_ROW);
+        {
+            ScopedTimer timer("checksums", POST);
 
-        cudaDeviceSynchronize();
-        CUDA_CHECK
+            // calculate col checksums for A
+
+            gridSize = dim3(cols_A);
+            blockSize = dim3(1, tileDim.y);
+            sharedMemSize = linearDimToBytes(tileDim.y);
+            kernels::compute_checksums<<<gridSize, blockSize, sharedMemSize, streams[0]>>>(dA, rows_A, cols_A, CHECKSUM_COMPUTE_COL);
+
+            // calculate row checksums for B
+
+            gridSize = dim3(1, ROWS_B);
+            blockSize = dim3(tileDim.x, 1);
+            sharedMemSize = linearDimToBytes(tileDim.x);
+            kernels::compute_checksums<<<gridSize, blockSize, sharedMemSize, streams[1]>>>(dB, ROWS_B, cols_B, CHECKSUM_COMPUTE_ROW);
+
+            cudaDeviceSynchronize();
+            CUDA_CHECK
+        }
+
+        if (globals::printMatrices)
+        {
+            // print dA and dB (with checksums)
+            float* Aec = matrix::alloc(rows_A + 1, cols_A, false);
+            float* Bec = matrix::alloc(ROWS_B, cols_B + 1, false);
+            cudaMemcpy(Aec, dA, size_A_ec, cudaMemcpyDeviceToHost);
+            cudaMemcpy(Bec, dB, size_B_ec, cudaMemcpyDeviceToHost);
+            matrix::print(Aec, rows_A + 1, cols_A, "Aec");
+            matrix::print(Bec, ROWS_B, cols_B + 1, "Bec");
+        }
 
         // compute the actual matrix multiplication as usual
-        kernels::tiled_matmul<<<gridSize, blockSize, 2 * sharedMemSize>>>(dA, dB, dC, rows_A + 1, cols_A, cols_B + 1);
-        cudaDeviceSynchronize();
-        CUDA_CHECK
+
+        {
+            ScopedTimer timer("matmul kernel", POST);
+
+            gridSize = dim3(CEIL_DIV(COLS_C + 1, tileDim.x), CEIL_DIV(ROWS_C + 1, tileDim.y));
+            blockSize = tileDim;
+            sharedMemSize = 2 * dim2ToBytes(tileDim);
+            kernels::tiled_matmul<<<gridSize, tileDim, sharedMemSize>>>(dA, dB, dC, rows_A + 1, cols_A, cols_B + 1);
+
+            cudaDeviceSynchronize();
+            CUDA_CHECK
+        }
+
+        if (globals::printMatrices)
+        {
+            // print dC (with checksums)
+            float* Cec = matrix::alloc(ROWS_C + 1, COLS_C + 1, false);
+            cudaMemcpy(Cec, dC, size_C_ec, cudaMemcpyDeviceToHost);
+            matrix::print(Cec, ROWS_C + 1, COLS_C + 1, "Cec");
+        }
 
         // send back result without checksums
 
-        int rowsPerStream = ROWS_C / numStreams; // how many rows each stream should process
-        int remainingRows = ROWS_C % numStreams; // remainder of rows to distribute among streams
-
-        int startRow = 0;
-        for (int s = 0; s < numStreams; ++s)
         {
-            int rowsToProcess = rowsPerStream + (s < remainingRows ? 1 : 0); // Distribute remaining rows among streams
+            ScopedTimer timer("dC to host", POST);
 
-            for (int i = 0; i < rowsToProcess; ++i) // issue copy commands for each row
+            for (int r = 0; r < ROWS_C; ++r)
             {
-                int rowIdx = startRow + i;
-                cudaMemcpyAsync(C + rowIdx * COLS_C, dC + rowIdx * (COLS_C + 1), COLS_C * sizeof(float), cudaMemcpyDeviceToHost, streams[s]);
+                cudaMemcpyAsync(C + r * COLS_C, dC + r * (COLS_C + 1), COLS_C * sizeof(float), cudaMemcpyDeviceToHost, streams[r % numStreams]);
             }
 
-            // update startRow for the next stream
-            startRow += rowsToProcess;
-        }
+            // destroy all streams
 
-        // synchronize all streams
-        for (int i = 0; i < numStreams; ++i)
-        {
-            cudaStreamSynchronize(streams[i]);
-            cudaStreamDestroy(streams[i]);
+            for (int i = 0; i < numStreams; ++i)
+            {
+                cudaStreamSynchronize(streams[i]); // we have to synch the device but do the loop to destroy anyway, so we synch here the single streams
+                cudaStreamDestroy(streams[i]);
+            }
         }
 
         // cleanup

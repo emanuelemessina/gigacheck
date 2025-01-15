@@ -12,6 +12,7 @@
 
 #define OPTION_INT_UNSET -1
 #define OPTION_STRING_UNSET std::string("")
+#define OPTION_BOOL_UNSET false
 
 /**
  * @brief Concept to validate option types for CLI.

@@ -82,7 +82,7 @@ Option* Option::setValue(const std::string& valueStr)
     }
     else if (std::holds_alternative<bool>(value))
     {
-        value = (valueStr == "true" || valueStr == "1");
+        value = true;
     }
 
     set = true;
@@ -92,6 +92,11 @@ Option* Option::setValue(const std::string& valueStr)
 
 Option* Option::setDefaultValue()
 {
+    if (std::holds_alternative<bool>(value))
+    {
+        value = true;
+    }
+
     set = true;
 
     return this;

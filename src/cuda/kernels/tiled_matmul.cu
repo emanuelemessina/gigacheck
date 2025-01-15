@@ -5,7 +5,7 @@
 // Dimension of the side of the square tile
 #define TILESIDE blockDim.x // = blockDim.y
 // sidelength of the tile corrected to avoid bank conflicts
-#define TILESIDE_BNK TILESIDE + (TILESIDE % 2 == 0 ? 1 : 0)
+#define TILESIDE_BNK (TILESIDE + (TILESIDE % 2 == 0 ? 1 : 0))
 
 // The #elements to skip to go to the next line
 #define SKIPROWS_A cols_A
@@ -94,7 +94,7 @@ __device__ float getMatrixElement(float* matrix, int mat_rows, int mat_cols, int
 __device__ bool setMatrixElement(float* matrix, int mat_rows, size_t mat_cols, int tile_size, int tile_idy, int tile_idx, int el_row, int el_col, float val)
 {
     int idx = getMatrixLinearIndex(mat_rows, mat_cols, tile_size, tile_idy, tile_idx, el_row, el_col);
-    if (idx != -1)
+    if (idx == -1)
         return false;
     matrix[idx] = val;
     return true;

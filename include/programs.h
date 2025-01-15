@@ -1,4 +1,4 @@
 namespace programs
 {
-    int gigacheck(int, int, int);
+    int gigacheck(int, int, int, bool, bool);
 }
