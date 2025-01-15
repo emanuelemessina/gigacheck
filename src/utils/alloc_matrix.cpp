@@ -1,8 +1,8 @@
-#include "utils.h"
+#include "matrix.h"
 
 #include <stdlib.h>
 
-float* utils::matrix::alloc(int rows, int cols, bool initialize)
+float* matrix::alloc(int rows, int cols, bool initialize)
 {
     float* tmp = (float*)malloc(rows * cols * sizeof(float));
 

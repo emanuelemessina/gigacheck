@@ -1,7 +1,7 @@
 #include "inferred_matrix_sizes.h"
-#include "utils.h"
+#include "matrix.h"
 
-void check(float* A, float* B, float* C, int ra, int ca, int cb)
+void matrix::check_product(float* A, float* B, float* C, int ra, int ca, int cb)
 {
     for (int r = 0; r < rc; r++)
     {

@@ -1,27 +1,11 @@
 #include "kernels.cuh"
-#include <math.h>
-#include <stdio.h>
 
-#define CEIL_DIV(numerator, denominator) (int)((numerator + denominator - 1) / denominator)
-
-#define ROWS_B cols_A
-#define ROWS_C rows_A
-#define COLS_C cols_B
-
-// size_X is total number of elements of matrix X
-#define SIZE_A (rows_A * cols_A)
-#define SIZE_B (ROWS_B * cols_B)
-#define SIZE_C (ROWS_C * COLS_C)
-
-// size_X_bytes is the dimension in bytes of matrix X
-#define SIZE_A_BYTES (SIZE_A * sizeof(float))
-#define SIZE_B_BYTES (SIZE_B * sizeof(float))
-#define SIZE_C_BYTES (SIZE_C * sizeof(float))
+#include "inferred_matrix_sizes.h"
 
 // Dimension of the side of the square tile
 #define TILESIDE blockDim.x // = blockDim.y
 // sidelength of the tile corrected to avoid bank conflicts
-#define TILESIDE_BNK TILESIDE + (TILESIDE % 2 == 0 ? 1 : 0);
+#define TILESIDE_BNK TILESIDE + (TILESIDE % 2 == 0 ? 1 : 0)
 
 // The #elements to skip to go to the next line
 #define SKIPROWS_A cols_A
@@ -39,7 +23,7 @@
 #define TILE_IDY blockIdx.y
 #define TILE_IDX blockIdx.x
 // number of tiles on the x direction (horizontal)
-#define NUM_TILES_X CEIL_DIV(cols_A, TILESIDE);
+#define NUM_TILES_X CEIL_DIV(cols_A, TILESIDE)
 
 /**
  * @brief Get the index of a matrix cell, given the tile + (local) element coordinates
@@ -113,21 +97,10 @@ __device__ bool setMatrixElement(float* matrix, int mat_rows, size_t mat_cols, i
     if (idx != -1)
         return false;
     matrix[idx] = val;
-    return return true;
+    return true;
 }
 
-/**
- * @brief CUDA kernel to compute the product between two matrices, using the tiled shared
- * memory approach
- *
- * @param[in]   A       The first matrix to multiply
- * @param[in]   B       The second matrix to multiply
- * @param[out]  C       The matrix where to write the result
- * @param[in]   rows_A  #rows in A
- * @param[in]   cols_A  #cols in A
- * @param[in]   cols_B  #cols in B
- */
-__global__ void tiled_matmul_kernel(float* A, float* B, float* C, int rows_A, int cols_A, int cols_B)
+__global__ void kernels::tiled_matmul(float* A, float* B, float* C, int rows_A, int cols_A, int cols_B)
 {
     // Each thread loads operand matrices values as tiles into shared memory
     // then computes the value of C corresponding to its position
@@ -147,7 +120,7 @@ __global__ void tiled_matmul_kernel(float* A, float* B, float* C, int rows_A, in
         //     - element (TH_ROW, TH_COL) of tile (TILE_IDY, tile_idx) of matrix A (one of A's tiles on the same grid row as this thread)
         //     - element (TH_ROW, TH_COL) of tile (tile_idx, TILE_IDX) of matrix B (the corresponding B tile, on the same grid column as the current row, and on the same grid row as the current column, because of how matrix multiplication works)
         shared_A[TH_ROW * SKIPROWS_TILE + TH_COL] = getMatrixElement(A, rows_A, cols_A, TILESIDE, TILE_IDY, tile_idx, TH_ROW, TH_COL);
-        shared_B[TH_ROW * SKIPROWS_TILE + TH_COL] = getMatrixElement(B, rows_B, cols_B, TILESIDE, tile_idx, TILE_IDX, TH_ROW, TH_COL);
+        shared_B[TH_ROW * SKIPROWS_TILE + TH_COL] = getMatrixElement(B, ROWS_B, cols_B, TILESIDE, tile_idx, TILE_IDX, TH_ROW, TH_COL);
 
         // another thread on the same row as this one will look at the same tiles but load elements from his corresponding column in each tile chunk that he looks at
         // theads from other rows will do the same
@@ -173,47 +146,4 @@ __global__ void tiled_matmul_kernel(float* A, float* B, float* C, int rows_A, in
 
     // this thread will write his result into C, other threads will do the same for their positions
     setMatrixElement(C, ROWS_C, COLS_C, TILESIDE, TILE_IDY, TILE_IDX, TH_ROW, TH_COL, res);
-}
-
-namespace cuda
-{
-    /**
-     * @brief Computes the product between two matrices A and B, exploiting the GPU
-     * with the tiled multiplication algorithm
-     *
-     * @param[in]   A       The first matrix to mutiply
-     * @param[in]   B       The second matrix to multiply
-     * @param[out]  C       The result matrix
-     * @param[in]   rows_A  #rows in A
-     * @param[in]   cols_A  #cols in A
-     * @param[in]   cols_B  #cols in B
-     *
-     */
-    void tiled_matmul(float* A, float* B, float* C, int rows_A, int cols_A, int cols_B)
-    {
-        float *dA, *dB, *dC;
-
-        cudaMalloc(&dA, SIZE_A_BYTES);
-        cudaMalloc(&dB, SIZE_B_BYTES);
-        cudaMalloc(&dC, SIZE_C_BYTES);
-
-        cudaMemcpy(dA, A, SIZE_A_BYTES, cudaMemcpyHostToDevice);
-        cudaMemcpy(dB, B, SIZE_B_BYTES, cudaMemcpyHostToDevice);
-
-        dim3 tiles(CEIL_DIV(COLS_C, tileDim.x), CEIL_DIV(ROWS_C, tileDim.y));
-
-        dim3 gridSize = tiles;
-        dim3 blockSize = tileDim;
-        int sharedMemSize = 2 * (tileDim.x + (tileDim.x % 2 == 0 ? 1 : 0)) * tileDim.y * sizeof(float);
-
-        tiled_matmul_kernel<<<gridSize, blockSize, sharedMemSize>>>(dA, dB, dC, rows_A, cols_A, cols_B);
-        cudaDeviceSynchronize();
-        CUDA_CHECK
-
-        cudaMemcpy(C, dC, size_C_bytes, cudaMemcpyDeviceToHost);
-
-        cudaFree(dA);
-        cudaFree(dB);
-        cudaFree(dC);
-    }
 }

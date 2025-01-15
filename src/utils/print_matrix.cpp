@@ -1,7 +1,7 @@
 #include "inferred_matrix_sizes.h"
-#include "utils.h"
+#include "matrix.h"
 
-void print(float* mat, size_t rows, size_t cols)
+void matrix::print(float* mat, int rows, int cols)
 {
     for (int r = 0; r < rows; r++)
     {

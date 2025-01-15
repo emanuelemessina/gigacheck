@@ -9,9 +9,9 @@ int main(int argc, char* argv[])
 
     cli
         .option({"h", "help", OPTION_INT_UNSET, "Help"})
-        .option({"ra", "rows-a", 1000, "A rows"})
-        .option({"ca", "cols-a", 1000, "A cols"})
-        .option({"cb", "cols-b", 1000, "B cols"})
+        .option({"ra", "rows-a", 100, "A rows"})
+        .option({"ca", "cols-a", 100, "A cols"})
+        .option({"cb", "cols-b", 100, "B cols"})
         .option({"r", "redundancy", 0, "Redundancy Level"})
         .option({"e", "errors", 0, "Introduced errors amount"});
 
@@ -35,6 +35,7 @@ int main(int argc, char* argv[])
 
     auto redundancy = cli.get("redundancy").getValue<int>();
     auto errors = cli.get("errors").getValue<int>();
+
     auto ra = cli.get("rows-a").getValue<int>();
     auto ca = cli.get("cols-a").getValue<int>();
     auto cb = cli.get("cols-b").getValue<int>();

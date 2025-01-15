@@ -1,8 +1,6 @@
-#include "kernels.cuh"
+#include "cuda.cuh"
+#include "matrix.h"
 #include "programs.h"
-#include "utils.h"
-
-using namespace utils;
 
 namespace programs
 {
@@ -14,12 +12,12 @@ namespace programs
 
         float* A = matrix::alloc(ra, ca, true);
         float* B = matrix::alloc(rb, cb, true);
-        float* C = matrix::alloc(rc, cc, false);
+        float* C;
 
-        cuda::tiled_matmul(A, B, C, ra, ca, cb);
+        cuda::matmul(A, B, C, ra, ca, cb);
         printf("Computation finished\n");
 
-        check_product(A, B, C, ra, ca, cb);
+        matrix::check_product(A, B, C, ra, ca, cb);
         printf("Check finished\n");
 
         matrix::print(A, ra, ca);
