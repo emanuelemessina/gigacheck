@@ -34,7 +34,7 @@ namespace cuda
         }
 
         {
-            ScopedTimer timer("dC to host", POST);
+            ScopedTimer timer("C to host", POST);
             cudaMemcpy(C, dC, SIZE_C_BYTES, cudaMemcpyDeviceToHost);
         }
 

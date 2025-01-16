@@ -6,6 +6,8 @@
     "[cuda]": {
         "editor.defaultFormatter": "xaver.clang-format",
     },
+    "files.insertFinalNewline": true,
+    "files.trimFinalNewlines": true,
     "files.associations": {
         "*.php": "php",
         "*.inix": "ini",

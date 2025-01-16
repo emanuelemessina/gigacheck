@@ -18,15 +18,19 @@ namespace matrix
      */
     float* alloc(int rows, int cols, bool initialize);
 
+#define HIGHLIGHT_LAST_ROW 1
+#define HIGHLIGHT_LAST_COL 2
+#define HIGHLIGHT_LAST_ROW_AND_COL 3
+
     /**
      * @brief Prints a matrix
      *
      * @param[out]  mat   The matrix
      * @param[in]   rows  #rows
      * @param[in]   cols  #cols
-     *
+     * @param[in]   name  The name of the matrix (optional)
      */
-    void print(float* mat, int rows, int cols, std::string&& name);
+    void print(float* mat, int rows, int cols, std::string&& name = "", int flags = 0);
 
     /**
      * @brief Checks that the matrix product C = A*B is correct. The function will

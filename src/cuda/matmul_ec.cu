@@ -82,8 +82,8 @@ namespace cuda
             float* Bec = matrix::alloc(ROWS_B, cols_B + 1, false);
             cudaMemcpy(Aec, dA, size_A_ec, cudaMemcpyDeviceToHost);
             cudaMemcpy(Bec, dB, size_B_ec, cudaMemcpyDeviceToHost);
-            matrix::print(Aec, rows_A + 1, cols_A, "Aec");
-            matrix::print(Bec, ROWS_B, cols_B + 1, "Bec");
+            matrix::print(Aec, rows_A + 1, cols_A, "A (w/ column checksum)", HIGHLIGHT_LAST_ROW);
+            matrix::print(Bec, ROWS_B, cols_B + 1, "B (w/ row checksum)", HIGHLIGHT_LAST_COL);
         }
 
         // compute the actual matrix multiplication as usual
@@ -105,13 +105,13 @@ namespace cuda
             // print dC (with checksums)
             float* Cec = matrix::alloc(ROWS_C + 1, COLS_C + 1, false);
             cudaMemcpy(Cec, dC, size_C_ec, cudaMemcpyDeviceToHost);
-            matrix::print(Cec, ROWS_C + 1, COLS_C + 1, "Cec");
+            matrix::print(Cec, ROWS_C + 1, COLS_C + 1, "C (w/ checksums)", HIGHLIGHT_LAST_ROW_AND_COL);
         }
 
         // send back result without checksums
 
         {
-            ScopedTimer timer("dC to host", POST);
+            ScopedTimer timer("C to host", POST);
 
             for (int r = 0; r < ROWS_C; ++r)
             {
