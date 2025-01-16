@@ -7,6 +7,7 @@
             "request": "launch",
             "program": "${workspaceFolder}/build/debug/gigacheck",
             "args": [
+                "-hasd",
                 "-ra",
                 "5",
                 "-ca",
@@ -14,8 +15,6 @@
                 "-cb",
                 "3",
                 "-c",
-                "-p",
-                "-i"
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}/build/debug",

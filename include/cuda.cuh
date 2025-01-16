@@ -1,7 +1,25 @@
 #pragma once
 
+#include <string>
+
 namespace cuda
 {
+    struct Info
+    {
+        int deviceNumber;
+        std::string deviceName;
+        int multiProcessorCount;
+        size_t totalGlobalMem;
+        size_t sharedMemPerBlock;
+        size_t sharedMemPerMultiprocessor;
+    };
+
+    /**
+     * @brief Get information about the GPU
+     * @return CUDAInfo struct with information about the GPU
+     */
+    Info getInfo();
+
     /**
      * @brief Computes the product between two matrices A and B, exploiting the GPU
      * with the tiled multiplication algorithm

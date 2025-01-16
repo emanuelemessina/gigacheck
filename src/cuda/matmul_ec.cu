@@ -46,8 +46,8 @@ namespace cuda
         }
 
         // define threads organization
-        dim3 gridSize;
-        dim3 blockSize;
+        dim3 gridDim;
+        dim3 blockDim;
         int sharedMemSize;
 
         // calculate checksums in parallel on different streams
@@ -57,23 +57,23 @@ namespace cuda
 
             // calculate col checksums for A
 
-            gridSize = dim3(cols_A);
-            blockSize = dim3(1, tileDim.y);
+            gridDim = dim3(cols_A);
+            blockDim = dim3(1, tileDim.y);
             sharedMemSize = linearDimToBytes(tileDim.y);
-            kernels::compute_checksums<<<gridSize, blockSize, sharedMemSize, streams[0]>>>(dA, rows_A, cols_A, CHECKSUM_COMPUTE_COL);
+            kernels::compute_checksums<<<gridDim, blockDim, sharedMemSize, streams[0]>>>(dA, rows_A, cols_A, CHECKSUM_COMPUTE_COL);
 
             // calculate row checksums for B
 
-            gridSize = dim3(1, ROWS_B);
-            blockSize = dim3(tileDim.x, 1);
+            gridDim = dim3(1, ROWS_B);
+            blockDim = dim3(tileDim.x, 1);
             sharedMemSize = linearDimToBytes(tileDim.x);
-            kernels::compute_checksums<<<gridSize, blockSize, sharedMemSize, streams[1]>>>(dB, ROWS_B, cols_B, CHECKSUM_COMPUTE_ROW);
+            kernels::compute_checksums<<<gridDim, blockDim, sharedMemSize, streams[1]>>>(dB, ROWS_B, cols_B, CHECKSUM_COMPUTE_ROW);
 
             cudaDeviceSynchronize();
             CUDA_CHECK
         }
 
-        if (globals::printMatrices)
+        if (globals::printMatrices) // TODO: make async
         {
             // print dA and dB (with checksums)
             float* Aec = matrix::alloc(rows_A + 1, cols_A, false);
@@ -89,10 +89,10 @@ namespace cuda
         {
             ScopedTimer timer("matmul kernel", POST);
 
-            gridSize = dim3(CEIL_DIV(COLS_C + 1, tileDim.x), CEIL_DIV(ROWS_C + 1, tileDim.y));
-            blockSize = tileDim;
+            gridDim = dim3(CEIL_DIV(COLS_C + 1, tileDim.x), CEIL_DIV(ROWS_C + 1, tileDim.y));
+            blockDim = tileDim;
             sharedMemSize = 2 * dim2ToBytes(tileDim);
-            kernels::tiled_matmul<<<gridSize, tileDim, sharedMemSize>>>(dA, dB, dC, rows_A + 1, cols_A, cols_B + 1);
+            kernels::tiled_matmul<<<gridDim, tileDim, sharedMemSize>>>(dA, dB, dC, rows_A + 1, cols_A, cols_B + 1);
 
             cudaDeviceSynchronize();
             CUDA_CHECK
@@ -118,7 +118,7 @@ namespace cuda
 
             // destroy all streams
 
-            for (int i = 0; i < numStreams; ++i)
+            for (int i = 0; i < globals::numStreams; ++i)
             {
                 cudaStreamSynchronize(streams[i]); // we have to synch the device but do the loop to destroy anyway, so we synch here the single streams
                 cudaStreamDestroy(streams[i]);

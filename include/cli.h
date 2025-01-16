@@ -81,15 +81,21 @@ class CLI
 {
   public:
     /**
-     * @brief Parses the command line arguments and sets the values for recognized options.
+     * @brief Constructs a new CLI with the specified description.
+     *
      * @param description Description of the CLI.
-     * @param options Array of options to be managed by the CLI.
      */
-    CLI(std::string&& description);
+    CLI(std::string&& description = "");
 
     CLI& option(Option&& opt);
 
-    void parse(int argc, char* argv[]);
+    /**
+     * @brief Parses the command line arguments and sets the values for recognized options. Fails if an unrecognized argument is found, in which case in prints it, followed by the help.
+     * @param argc
+     * @param argv
+     * @return false if there was an unrecognized argument.
+     */
+    bool parse(int argc, char* argv[]);
 
     Option& get(std::string&& name);
 

@@ -1,4 +1,5 @@
 #include "cli.h"
+#include "iomod.h"
 
 CLI::CLI(std::string&& description)
     : name(""), description(description)
@@ -8,6 +9,9 @@ CLI::CLI(std::string&& description)
 
 void CLI::help()
 {
+    std::cout << "Description:\n\n"
+              << description << "\n"
+              << std::endl;
     std::cout << "Usage:\n"
               << name << " [OPTIONS...]\n\n"
               << "Options:"
@@ -24,13 +28,14 @@ CLI& CLI::option(Option&& opt)
     return *this;
 }
 
-void CLI::parse(int argc, char* argv[])
+bool CLI::parse(int argc, char* argv[])
 {
     name = argv[0];
+    std::string arg = "";
 
     for (int i = 1; i < argc; ++i)
     {
-        std::string arg = argv[i];
+        arg = argv[i];
 
         options::iterator it;
         if (arg.rfind("--", 0) == 0)
@@ -46,6 +51,7 @@ void CLI::parse(int argc, char* argv[])
         }
         else
         {
+            // unrecognized argument
             it = opts.end();
         }
 
@@ -60,8 +66,19 @@ void CLI::parse(int argc, char* argv[])
             }
 
             it->second.setDefaultValue();
+
+            continue;
         }
+
+        // unrecognized argument
+        std::cerr << RED << "Unknown argument: " << arg << RESET << "\n"
+                  << std::endl;
+        // print help
+        help();
+        return false;
     }
+
+    return true;
 }
 
 Option& CLI::get(std::string&& longName)

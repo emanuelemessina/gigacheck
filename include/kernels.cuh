@@ -1,7 +1,8 @@
 #pragma once
 
-// default blockSize for tiled operations
-#define tileDim dim3(32, 32)
+#include "globals.h"
+
+#define tileDim dim3(globals::tileSide, globals::tileSide)
 
 #include <stdio.h>
 

@@ -15,6 +15,7 @@ int main(int argc, char* argv[])
         .option({"c", "check", OPTION_BOOL_UNSET, "Check the GPU product correctness with the CPU (for debugging, do not use with big matrices)"})
         .option({"i", "ints", OPTION_BOOL_UNSET, "Use int values instead of floats (for visualization, still uses floats as underlying type)"})
         .option({"s", "streams", 4, "Max number of concurrent streams to use"})
+        .option({"t", "tileside", 32, "Side of square tile blocks / Length of vector blocks"})
         .option({"ra", "rows-a", 100, "A rows"})
         .option({"ca", "cols-a", 100, "A cols"})
         .option({"cb", "cols-b", 100, "B cols"})
@@ -23,7 +24,8 @@ int main(int argc, char* argv[])
 
     // cli parse
 
-    cli.parse(argc, argv);
+    if (!cli.parse(argc, argv))
+        return 1;
 
     auto help = cli.get("help");
 
@@ -41,10 +43,12 @@ int main(int argc, char* argv[])
 
     auto print = cli.get("print").getValue<bool>();
     auto ints = cli.get("ints").getValue<bool>();
-    auto streams = cli.get("streams").getValue<bool>();
+    auto streams = cli.get("streams").getValue<int>();
+    auto tileside = cli.get("tileside").getValue<int>();
     globals::printMatrices = print;
     globals::useIntValues = ints;
     globals::numStreams = streams;
+    globals::tileSide = tileside;
 
     auto vanilla = cli.get("vanilla").getValue<bool>();
     auto check = cli.get("check").getValue<bool>();
