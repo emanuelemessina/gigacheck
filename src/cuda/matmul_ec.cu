@@ -28,6 +28,15 @@ namespace cuda
         cudaMalloc(&dB, size_B_ec);
         cudaMalloc(&dC, size_C_ec);
 
+        // allocate control checksums
+
+        float *ccC, *rcC;
+
+        cudaMalloc(&ccC, (COLS_C + 1) * sizeof(float));
+        cudaMalloc(&rcC, (ROWS_C + 1) * sizeof(float));
+
+        CUDA_CHECK
+
         // create streams for parallel executions
 
         cudaStream_t* streams = new cudaStream_t[globals::numStreams];
@@ -139,6 +148,42 @@ namespace cuda
             matrix::print(Cec, ROWS_C + 1, COLS_C + 1, "C (w/ checksums)", HIGHLIGHT_LAST_ROW_AND_COL);
             free(Cec);
         }
+
+        // compute control checksums after mul
+
+        {
+            ScopedTimer timer("C checksums", POST);
+
+            gridDim = dim3(COLS_C + 1);
+            blockDim = dim3(1, tileDim.y);
+            sharedMemSize = linearDimToBytes(tileDim.y);
+            kernels::compute_checksums<<<gridDim, blockDim, sharedMemSize, streams[0]>>>(dC, ROWS_C, (COLS_C + 1), CHECKSUM_COMPUTE_COL, ccC);
+
+            gridDim = dim3(1, ROWS_C + 1);
+            blockDim = dim3(tileDim.x, 1);
+            sharedMemSize = linearDimToBytes(tileDim.x);
+            kernels::compute_checksums<<<gridDim, blockDim, sharedMemSize, streams[1]>>>(dC, (ROWS_C + 1), COLS_C, CHECKSUM_COMPUTE_ROW, rcC);
+
+            cudaDeviceSynchronize();
+            CUDA_CHECK
+        }
+
+        if (globals::printMatrices)
+        {
+            // print control checksums
+            float* hrcC = matrix::alloc(ROWS_C + 1, 1, false);
+            float* hccC = matrix::alloc(1, COLS_C + 1, false);
+            cudaMemcpy(hrcC, rcC, (ROWS_C + 1) * sizeof(float), cudaMemcpyDeviceToHost);
+            CUDA_CHECK
+            cudaMemcpy(hccC, ccC, (COLS_C + 1) * sizeof(float), cudaMemcpyDeviceToHost);
+            CUDA_CHECK
+            matrix::print(hrcC, ROWS_C + 1, 1, "C control row checksum", HIGHLIGHT_LAST_COL);
+            matrix::print(hccC, 1, COLS_C + 1, "C control column checksum", HIGHLIGHT_LAST_ROW);
+            free(hrcC);
+            free(hccC);
+        }
+
+        // TODO: perform here error detection, correction
 
         // send back result without checksums
 

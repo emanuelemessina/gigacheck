@@ -48,16 +48,17 @@ namespace kernels
      * This CUDA kernel computes checksums for a given matrix. The checksums can be computed
      * either for rows or columns based on the `checksum_compute_mode` parameter.
      *
-     * @note The checksums are stored in the last row (for column checksums) or the last column (for row checksums) directly in the matrix itself. Thus the matrix is assumed to have 1 extra row or column than what specified by the `rows` and `cols` parameters.
+     * @note The checksum is stored, unless the checksum vector is provided, in the last row (for column checksums) or the last column (for row checksums) directly in the matrix itself. Thus the matrix is assumed to have 1 extra row or column than what specified by the `rows` and `cols` parameters.
      *
      * @param matrix Pointer to the matrix data stored in device memory.
      * @param rows Number of rows in the matrix.
      * @param cols Number of columns in the matrix.
+     * @param checksum If provided, the checksum vector is stored here instead of in the matrix.
      * @param checksum_compute_mode Boolean flag indicating the mode of checksum computation.
      *                              If true (CHECKSUM_COMPUTE_ROW), compute checksums for rows;
      *                              if false (CHECKSUM_COMPUTE_COL), compute checksums for columns.
      */
-    __global__ void compute_checksums(float* matrix, int rows, int cols, bool checksum_compute_mode);
+    __global__ void compute_checksums(float* matrix, int rows, int cols, bool checksum_compute_mode, float* checksum = nullptr);
 
     /**
      * @brief CUDA kernel to compute the product between two matrices, using the tiled shared

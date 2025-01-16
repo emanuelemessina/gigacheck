@@ -1,6 +1,6 @@
 #include "kernels.cuh"
 
-__global__ void kernels::compute_checksums(float* matrix, int rows, int cols, bool checksum_compute_mode)
+__global__ void kernels::compute_checksums(float* matrix, int rows, int cols, bool checksum_compute_mode, float* checksum)
 {
     extern __shared__ float shared_data[]; // shared memory for intermediate sums, as big as the blockdim vector
 
@@ -16,7 +16,7 @@ __global__ void kernels::compute_checksums(float* matrix, int rows, int cols, bo
     // this thread accumulates values in blockdim offsets along the reduction direction
     for (int i = index_reduction; i < limit_reduction; i += blockDim_reduction)
     {
-        sum += checksum_compute_mode == CHECKSUM_COMPUTE_COL ? matrix[i * cols + index_orthogonal] : matrix[index_orthogonal * cols + i];
+        sum += checksum_compute_mode == CHECKSUM_COMPUTE_COL ? matrix[i * cols + index_orthogonal] : matrix[index_orthogonal * (cols + 1) + i];
     }
 
     // this thread stores his partial result into shared memory at his relative offset
@@ -33,9 +33,15 @@ __global__ void kernels::compute_checksums(float* matrix, int rows, int cols, bo
         __syncthreads(); // other threads do the same
     }
 
-    // finally, the first thread writes final reduction result to the matrix directly
+    // finally, the first thread writes final reduction result to the matrix directly, or to the checksum array
     if (index_reduction == 0)
     {
+        if (checksum != nullptr)
+        {
+            checksum[index_orthogonal] = shared_data[0];
+            return;
+        }
+
         if (checksum_compute_mode == CHECKSUM_COMPUTE_COL)
         {
             matrix[rows * cols + index_orthogonal] = shared_data[0]; // last row for column checksums
