@@ -2,6 +2,7 @@
 #include "globals.h"
 #include "iomod.h"
 #include "matrix.h"
+#include "memsize_string.h"
 #include "programs.h"
 #include "timer.h"
 
@@ -16,9 +17,7 @@ namespace programs
         printf("GIGACHECK\n");
         printf("=========\n\n");
 
-        std::cout << BOLD;
-        printf("Params:\n");
-        std::cout << RESET;
+        std::cout << BOLD << "Params:" << RESET << std::endl;
         printf("\tA: %d x %d\n", ra, ca);
         printf("\tB: %d x %d\n", ca, cb);
         printf("\t-> C: %d x %d\n", rc, cc);
@@ -28,14 +27,10 @@ namespace programs
         printf("\tTile side: %d", globals::tileSide);
         printf("\n\n");
 
-        std::cout << BOLD;
-        printf("Device info:\n");
-        std::cout << RESET;
+        std::cout << BOLD << "Device info:" << RESET << std::endl;
         std::cout << "\tName: " << info.deviceName
                   << std::endl;
-        std::cout << "\tMultiprocessor count: " << info.multiProcessorCount
-                  << std::endl;
-        std::cout << "\tSharedMem per multiprocessor: " << info.sharedMemPerMultiprocessor
+        std::cout << "\tMax Global Mem: " << humanReadableMemSize(globals::maxGlobalMem)
                   << std::endl;
         printf("\n\n");
 

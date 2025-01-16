@@ -6,4 +6,5 @@ namespace globals
     bool printMatrices = false;
     int numStreams = 4;
     int tileSide = 32;
+    size_t maxGlobalMem = 1073741824; // 1 GB
 }

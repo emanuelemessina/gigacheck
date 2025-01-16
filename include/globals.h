@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stddef.h>
+
 namespace globals
 {
     extern bool printMatrices;
@@ -8,4 +10,6 @@ namespace globals
 
     // default tile side for squared block tiles
     extern int tileSide;
+
+    extern size_t maxGlobalMem;
 }

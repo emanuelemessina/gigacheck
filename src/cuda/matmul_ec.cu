@@ -123,6 +123,8 @@ namespace cuda
                 cudaStreamSynchronize(streams[i]); // we have to synch the device but do the loop to destroy anyway, so we synch here the single streams
                 cudaStreamDestroy(streams[i]);
             }
+
+            CUDA_CHECK
         }
 
         // cleanup

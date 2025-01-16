@@ -1,7 +1,7 @@
 #include "cuda.cuh"
-#include "formatting.h"
 #include "inferred_matrix_sizes.h"
 #include "kernels.cuh"
+#include "memsize_string.h"
 #include "timer.h"
 
 namespace cuda
@@ -31,13 +31,6 @@ namespace cuda
             dim3 blockDim = tileDim;
             int sharedMemSize = 2 * dim2ToBytes(tileDim);
 
-            // print info
-
-            printf("gridDim: %d %d %d\n", gridDim.x, gridDim.y, gridDim.z);
-            printf("blockDim: %d %d %d\n", blockDim.x, blockDim.y, blockDim.z);
-            std::cout << "sharedMemSize per block: " << humanReadableMemSize(sharedMemSize) << " / " << humanReadableMemSize(info.sharedMemPerBlock) << std::endl;
-            std::cout << "sharedMemSize per grid: " << humanReadableMemSize(sharedMemSize * gridDim.x * gridDim.y * gridDim.z) << " / " << humanReadableMemSize(info.sharedMemPerMultiprocessor * info.multiProcessorCount) << std::endl;
-
             kernels::tiled_matmul<<<gridDim, blockDim, sharedMemSize>>>(dA, dB, dC, rows_A, cols_A, cols_B);
 
             cudaDeviceSynchronize();
@@ -47,6 +40,7 @@ namespace cuda
         {
             ScopedTimer timer("C to host", POST);
             cudaMemcpy(C, dC, SIZE_C_BYTES, cudaMemcpyDeviceToHost);
+            CUDA_CHECK
         }
 
         cudaFree(dA);
