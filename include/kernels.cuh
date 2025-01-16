@@ -4,13 +4,14 @@
 
 #define tileDim dim3(globals::tileSide, globals::tileSide)
 
+#include "iomod.h"
 #include <stdio.h>
 
-#define CUDA_CHECK                                                 \
-    {                                                              \
-        cudaError_t error = cudaGetLastError();                    \
-        if (error != cudaSuccess)                                  \
-            printf("CUDA Error: %s\n", cudaGetErrorString(error)); \
+#define CUDA_CHECK                                                                                 \
+    {                                                                                              \
+        cudaError_t error = cudaGetLastError();                                                    \
+        if (error != cudaSuccess)                                                                  \
+            std::cerr << RED << "CUDA Error: " << cudaGetErrorString(error) << RESET << std::endl; \
     }
 
 #define CEIL_DIV(numerator, denominator) (int)((numerator + denominator - 1) / denominator)

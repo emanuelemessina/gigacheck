@@ -17,21 +17,23 @@ namespace programs
         printf("GIGACHECK\n");
         printf("=========\n\n");
 
+#define WOUT (std::cout << std::setw(18))
+
         std::cout << BOLD << "Params:" << RESET << std::endl;
-        printf("\tA: %d x %d\n", ra, ca);
-        printf("\tB: %d x %d\n", ca, cb);
-        printf("\t-> C: %d x %d\n", rc, cc);
-        std::cout << "\tValues type: " << (globals::useIntValues ? "int" : "float") << std::endl;
-        std::cout << "\tGPU mul alg: " << (vanilla ? "vanilla" : "error corrected") << std::endl;
-        std::cout << "\t# streams: " << globals::numStreams << std::endl;
-        printf("\tTile side: %d", globals::tileSide);
+        WOUT << "A: " << ra << " x " << ca << std::endl;
+        WOUT << "B: " << rb << " x " << cb << std::endl;
+        WOUT << "-> C: " << rc << " x " << cc << std::endl;
+        WOUT << "Values type: " << (globals::useIntValues ? "int" : "float") << std::endl;
+        WOUT << "GPU mul alg: " << (vanilla ? "vanilla" : "error corrected") << std::endl;
+        WOUT << "# streams: " << globals::numStreams << std::endl;
+        WOUT << "Tile side: " << globals::tileSide << std::endl;
         printf("\n\n");
 
         std::cout << BOLD << "Device info:" << RESET << std::endl;
-        std::cout << "\tName: " << info.deviceName
-                  << std::endl;
-        std::cout << "\tMax Global Mem: " << humanReadableMemSize(globals::maxGlobalMem)
-                  << std::endl;
+        WOUT << "Name: " << info.deviceName
+             << std::endl;
+        WOUT << "Max Global Mem: " << humanReadableMemSize(globals::maxGlobalMem)
+             << std::endl;
         printf("\n\n");
 
         float* A = matrix::alloc(ra, ca, true);

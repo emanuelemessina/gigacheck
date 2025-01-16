@@ -1,5 +1,6 @@
 #include "cli.h"
 #include "iomod.h"
+#include <iomanip>
 
 CLI::CLI(std::string&& description)
     : name(""), description(description)
@@ -18,7 +19,10 @@ void CLI::help()
               << std::endl;
     for (auto pair : opts)
     {
-        std::cout << "\t-" << pair.second.shortName << ", --" << pair.second.longName << "\t" << pair.second.description << std::endl;
+        const auto opt = pair.second;
+        std::cout << std::setw(10) << std::right << ("-" + opt.shortName + ", ")
+                  << std::setw(15) << std::left << ("--" + opt.longName)
+                  << " " << opt.description << std::endl;
     }
 }
 
