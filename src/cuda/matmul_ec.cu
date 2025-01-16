@@ -8,6 +8,14 @@ namespace cuda
 {
     void matmul_ec(float* A, float* B, float* C, int rows_A, int cols_A, int cols_B)
     {
+        // register host pointers as pinned
+
+        cudaHostRegister(A, SIZE_A_BYTES, cudaHostRegisterDefault);
+        cudaHostRegister(B, SIZE_B_BYTES, cudaHostRegisterDefault);
+        cudaHostRegister(C, SIZE_C_BYTES, cudaHostRegisterDefault);
+
+        CUDA_CHECK
+
         // allocate device matrices with extra space for checksums A(m+1xn)B(nxp+1) = C(m+1xp+1)
 
         int size_A_ec = SIZE_A_BYTES + cols_A * sizeof(float);
@@ -134,5 +142,11 @@ namespace cuda
         cudaFree(dA);
         cudaFree(dB);
         cudaFree(dC);
+
+        cudaHostUnregister(A);
+        cudaHostUnregister(B);
+        cudaHostUnregister(C);
+
+        CUDA_CHECK
     }
 }

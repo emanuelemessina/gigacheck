@@ -66,6 +66,10 @@ namespace programs
         if (globals::printMatrices)
             matrix::print(C, rc, cc, "C");
 
+        free(A);
+        free(B);
+        free(C);
+
         return result;
     }
 }
