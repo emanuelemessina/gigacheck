@@ -14,6 +14,7 @@ int main(int argc, char* argv[])
         .option({"p", "print", OPTION_BOOL_UNSET, "Print the matrices (for debugging, do not use with big matrices)"})
         .option({"c", "check", OPTION_BOOL_UNSET, "Check the GPU product correctness with the CPU (for debugging, do not use with big matrices)"})
         .option({"i", "ints", OPTION_BOOL_UNSET, "Use int values instead of floats (for visualization, still uses floats as underlying type)"})
+        .option({"s", "streams", 4, "Max number of concurrent streams to use"})
         .option({"ra", "rows-a", 100, "A rows"})
         .option({"ca", "cols-a", 100, "A cols"})
         .option({"cb", "cols-b", 100, "B cols"})
@@ -40,8 +41,10 @@ int main(int argc, char* argv[])
 
     auto print = cli.get("print").getValue<bool>();
     auto ints = cli.get("ints").getValue<bool>();
+    auto streams = cli.get("streams").getValue<bool>();
     globals::printMatrices = print;
     globals::useIntValues = ints;
+    globals::numStreams = streams;
 
     auto vanilla = cli.get("vanilla").getValue<bool>();
     auto check = cli.get("check").getValue<bool>();

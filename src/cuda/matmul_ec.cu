@@ -22,10 +22,8 @@ namespace cuda
 
         // create streams for parallel executions
 
-        int numStreams = 4; // TODO: adjust num of streams depending on the architecture?
-
-        cudaStream_t* streams = new cudaStream_t[numStreams];
-        for (int i = 0; i < numStreams; ++i)
+        cudaStream_t* streams = new cudaStream_t[globals::numStreams];
+        for (int i = 0; i < globals::numStreams; ++i)
         {
             cudaStreamCreate(&streams[i]);
         }
@@ -41,7 +39,7 @@ namespace cuda
 
             for (int r = 0; r < ROWS_B; ++r)
             {
-                cudaMemcpyAsync(dB + r * (cols_B + 1), B + r * cols_B, cols_B * sizeof(float), cudaMemcpyHostToDevice, streams[r % numStreams]);
+                cudaMemcpyAsync(dB + r * (cols_B + 1), B + r * cols_B, cols_B * sizeof(float), cudaMemcpyHostToDevice, streams[r % globals::numStreams]);
             }
 
             cudaDeviceSynchronize();
@@ -115,7 +113,7 @@ namespace cuda
 
             for (int r = 0; r < ROWS_C; ++r)
             {
-                cudaMemcpyAsync(C + r * COLS_C, dC + r * (COLS_C + 1), COLS_C * sizeof(float), cudaMemcpyDeviceToHost, streams[r % numStreams]);
+                cudaMemcpyAsync(C + r * COLS_C, dC + r * (COLS_C + 1), COLS_C * sizeof(float), cudaMemcpyDeviceToHost, streams[r % globals::numStreams]);
             }
 
             // destroy all streams
