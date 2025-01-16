@@ -1,7 +1,5 @@
 By priority:
 
-- check streams order ec
-- pinned to host mem
 - safe multiplication kernel with checksums and error correction/detection
 - async copy while computing buffering schemes:
     - AB->C (default)

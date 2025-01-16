@@ -10,11 +10,11 @@
                 "-ra",
                 "1024",
                 "-ca",
-                "1024",
+                "500",
                 "-cb",
                 "1024",
-                "-c",
-                "-v"
+                "-s",
+                "4"
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}/build/debug",

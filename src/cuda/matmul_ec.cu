@@ -36,32 +36,26 @@ namespace cuda
             cudaStreamCreate(&streams[i]);
         }
 
-        {
-            ScopedTimer timer("A,B to device", POST);
-
-            // copy A to device
-
-            cudaMemcpyAsync(dA, A, SIZE_A_BYTES, cudaMemcpyHostToDevice, streams[0]);
-
-            // copy B to device
-
-            for (int r = 0; r < ROWS_B; ++r)
-            {
-                cudaMemcpyAsync(dB + r * (cols_B + 1), B + r * cols_B, cols_B * sizeof(float), cudaMemcpyHostToDevice, streams[r % globals::numStreams]);
-            }
-
-            cudaDeviceSynchronize();
-        }
-
         // define threads organization
         dim3 gridDim;
         dim3 blockDim;
         int sharedMemSize;
 
-        // calculate checksums in parallel on different streams
+        // send matrices to device and calculate checksums in parallel on different streams
+
+        // stream1: copyA, checkA
+        // stream2: copyB, checkB
+        // copies are sent to possibly the same copy queue, kernels to the same kernel queue (especially if only one queue per category exists)
+        // we use depth-first issue order: copyA - checkA - copyB - checkB
+        // breadth-first issue order would be: copyA - copyB - checkA - checkB
+        // we found that depth-first gives better performance
 
         {
-            ScopedTimer timer("checksums", POST);
+            ScopedTimer timer("A,B to device + checksums", POST);
+
+            // copy A to device
+
+            cudaMemcpyAsync(dA, A, SIZE_A_BYTES, cudaMemcpyHostToDevice, streams[0]);
 
             // calculate col checksums for A
 
@@ -70,7 +64,36 @@ namespace cuda
             sharedMemSize = linearDimToBytes(tileDim.y);
             kernels::compute_checksums<<<gridDim, blockDim, sharedMemSize, streams[0]>>>(dA, rows_A, cols_A, CHECKSUM_COMPUTE_COL);
 
+            // copy B to device
+
+            // since B contains the checksum we have to copy it row by row, we divide the load into multiple streams from [1] to [numStreams-1] (diffent from the A stream[0])
+
+            std::vector<cudaEvent_t> memcpyEvents(globals::numStreams - 1);
+
+            for (int s = 0; s < globals::numStreams - 1; ++s)
+            {
+                cudaEventCreate(&memcpyEvents[s]);
+            }
+
+            for (int r = 0; r < ROWS_B; ++r)
+            {
+                int streamIdx = r % (globals::numStreams - 1) + 1;
+                cudaMemcpyAsync(dB + r * (cols_B + 1), B + r * cols_B, cols_B * sizeof(float), cudaMemcpyHostToDevice, streams[streamIdx]);
+
+                // record an event in the stream (only the last copy operation in each stream needs to record)
+                if (r >= ROWS_B - (globals::numStreams - 1))
+                {
+                    cudaEventRecord(memcpyEvents[streamIdx - 1], streams[streamIdx]);
+                }
+            }
+
             // calculate row checksums for B
+
+            for (int s = 0; s < globals::numStreams - 1; ++s) // wait for all the copy streams to finish
+            {
+                cudaStreamWaitEvent(streams[1], memcpyEvents[s]);
+                cudaEventDestroy(memcpyEvents[s]);
+            }
 
             gridDim = dim3(1, ROWS_B);
             blockDim = dim3(tileDim.x, 1);
@@ -81,7 +104,7 @@ namespace cuda
             CUDA_CHECK
         }
 
-        if (globals::printMatrices) // TODO: make async
+        if (globals::printMatrices)
         {
             // print dA and dB (with checksums)
             float* Aec = matrix::alloc(rows_A + 1, cols_A, false);
@@ -90,6 +113,8 @@ namespace cuda
             cudaMemcpy(Bec, dB, size_B_ec, cudaMemcpyDeviceToHost);
             matrix::print(Aec, rows_A + 1, cols_A, "A (w/ column checksum)", HIGHLIGHT_LAST_ROW);
             matrix::print(Bec, ROWS_B, cols_B + 1, "B (w/ row checksum)", HIGHLIGHT_LAST_COL);
+            free(Aec);
+            free(Bec);
         }
 
         // compute the actual matrix multiplication as usual
@@ -112,6 +137,7 @@ namespace cuda
             float* Cec = matrix::alloc(ROWS_C + 1, COLS_C + 1, false);
             cudaMemcpy(Cec, dC, size_C_ec, cudaMemcpyDeviceToHost);
             matrix::print(Cec, ROWS_C + 1, COLS_C + 1, "C (w/ checksums)", HIGHLIGHT_LAST_ROW_AND_COL);
+            free(Cec);
         }
 
         // send back result without checksums
