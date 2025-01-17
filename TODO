@@ -1,11 +1,11 @@
 By priority:
 
-- safe multiplication kernel with checksums and error correction/detection
+- convert memcopy of single int/floats to memsets, clean code, check documentation/comments
+- code to introduce errors
 - async copy while computing buffering schemes:
     - AB->C (default)
     - AB->C // A'B' (double buffering)
     - AB->C // A'B'->C' (parallel computation)
-- code to introduce errors
 - profile everything
 - can further optimize block sizes, memory... ?
 

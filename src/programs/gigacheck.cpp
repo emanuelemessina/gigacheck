@@ -1,4 +1,5 @@
 #include "cuda.cuh"
+#include "edc.cuh"
 #include "globals.h"
 #include "iomod.h"
 #include "matrix.h"
@@ -52,7 +53,18 @@ namespace programs
             if (vanilla)
                 cuda::matmul(A, B, C, ra, ca, cb);
             else
-                cuda::matmul_ec(A, B, C, ra, ca, cb);
+            {
+                cuda::EDCResult edc_res = cuda::matmul_ec(A, B, C, ra, ca, cb);
+                if (edc_res == cuda::UNCORRECTABLE_ERROR)
+                {
+                    std::cout << "😐 Uncorrectable error encountered, multiplication failed." << std::endl;
+                    check = false;
+                }
+                else if (edc_res == cuda::CORRECTED_ERROR)
+                {
+                    std::cout << "😎 Corrected detected error(s)" << std::endl;
+                }
+            }
         }
 
         int result = 0;

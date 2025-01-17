@@ -14,6 +14,7 @@
                 "-cb",
                 "3",
                 "-i",
+                "-c",
                 "-p",
             ],
             "stopAtEntry": false,

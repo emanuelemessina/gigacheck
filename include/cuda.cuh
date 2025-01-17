@@ -1,5 +1,6 @@
 #pragma once
 
+#include "edc.cuh"
 #include <string>
 
 namespace cuda
@@ -46,5 +47,5 @@ namespace cuda
      * @param[in]   print_intermediate  whether to print the matrix with checksums
      *
      */
-    void matmul_ec(float* A, float* B, float* C, int rows_A, int cols_A, int cols_B);
+    EDCResult matmul_ec(float* A, float* B, float* C, int rows_A, int cols_A, int cols_B);
 };
