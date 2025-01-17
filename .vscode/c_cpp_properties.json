@@ -5,7 +5,6 @@
             "includePath": [
                 // local
                 "include/**",
-                "external/**",
                 // g++
                 "/usr/include",
                 "/usr/local/include",

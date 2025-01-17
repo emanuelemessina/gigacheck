@@ -3,9 +3,9 @@
 #ifndef TIMER_H
 #define TIMER_H
 
+#include "iomod.h"
 #include <chrono>
 #include <functional>
-#include <iostream>
 #include <optional>
 
 inline void print_time(long int nanoseconds)
@@ -44,7 +44,7 @@ class ScopedTimer
         : name(blockName), mode(mode), start(std::chrono::high_resolution_clock::now())
     {
         if (mode == PRE)
-            std::cout << name << " ..." << std::endl;
+            std::cout << YELLOW << "⏱️  [" << name << "]" << RESET << std::endl;
     }
 
     ~ScopedTimer()
@@ -53,9 +53,9 @@ class ScopedTimer
         auto nanoseconds = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
 
         if (mode == PRE)
-            std::cout << "--> ";
+            std::cout << YELLOW << "🏁 [" << name << "] " << RESET;
         else
-            std::cout << "\t" << name << ": ";
+            std::cout << "\t➡️  " << CYAN << name << RESET << ": ";
 
         print_time(nanoseconds);
 

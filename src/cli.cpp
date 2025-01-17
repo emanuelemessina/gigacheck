@@ -1,4 +1,6 @@
 #include "cli.h"
+#include "iomod.h"
+#include <iomanip>
 
 CLI::CLI(std::string&& description)
     : name(""), description(description)
@@ -8,13 +10,19 @@ CLI::CLI(std::string&& description)
 
 void CLI::help()
 {
+    std::cout << "Description:\n\n"
+              << description << "\n"
+              << std::endl;
     std::cout << "Usage:\n"
               << name << " [OPTIONS...]\n\n"
               << "Options:"
               << std::endl;
     for (auto pair : opts)
     {
-        std::cout << "\t-" << pair.second.shortName << ", --" << pair.second.longName << "\t" << pair.second.description << std::endl;
+        const auto opt = pair.second;
+        std::cout << std::setw(10) << std::right << ("-" + opt.shortName + ", ")
+                  << std::setw(15) << std::left << ("--" + opt.longName)
+                  << " " << opt.description << std::endl;
     }
 }
 
@@ -24,13 +32,14 @@ CLI& CLI::option(Option&& opt)
     return *this;
 }
 
-void CLI::parse(int argc, char* argv[])
+bool CLI::parse(int argc, char* argv[])
 {
     name = argv[0];
+    std::string arg = "";
 
     for (int i = 1; i < argc; ++i)
     {
-        std::string arg = argv[i];
+        arg = argv[i];
 
         options::iterator it;
         if (arg.rfind("--", 0) == 0)
@@ -46,6 +55,7 @@ void CLI::parse(int argc, char* argv[])
         }
         else
         {
+            // unrecognized argument
             it = opts.end();
         }
 
@@ -60,8 +70,19 @@ void CLI::parse(int argc, char* argv[])
             }
 
             it->second.setDefaultValue();
+
+            continue;
         }
+
+        // unrecognized argument
+        std::cerr << RED << "Unknown argument: " << arg << RESET << "\n"
+                  << std::endl;
+        // print help
+        help();
+        return false;
     }
+
+    return true;
 }
 
 Option& CLI::get(std::string&& longName)
@@ -82,7 +103,7 @@ Option* Option::setValue(const std::string& valueStr)
     }
     else if (std::holds_alternative<bool>(value))
     {
-        value = (valueStr == "true" || valueStr == "1");
+        value = true;
     }
 
     set = true;
@@ -92,6 +113,11 @@ Option* Option::setValue(const std::string& valueStr)
 
 Option* Option::setDefaultValue()
 {
+    if (std::holds_alternative<bool>(value))
+    {
+        value = true;
+    }
+
     set = true;
 
     return this;

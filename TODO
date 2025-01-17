@@ -1,6 +1,5 @@
 By priority:
 
-- tiled matrix multiplication
 - safe multiplication kernel with checksums and error correction/detection
 - async copy while computing buffering schemes:
     - AB->C (default)
@@ -27,5 +26,3 @@ There will be no time:
 - use tensor cores (cublas) when available
 https://developer.nvidia.com/blog/programming-tensor-cores-cuda-9/
 - split into gpus
-
-
