@@ -13,19 +13,18 @@ bool matrix::check_product(float* A, float* B, float* C, int ra, int ca, int cb)
 
             if (C[c + cb * r] != val)
             {
-                std::cerr << RED;
+                CERR << RED;
                 fprintf(stderr, "❌ Check failed @ (%d, %d): got ", r + 1, c + 1);
-                fprintf(stderr, globals::useIntValues ? "%2.0f instead of %2.0f" : "%f instead of %f", C[c + cb * r], val);
-                fprintf(stderr, "\n");
-                std::cerr << RESET;
+                CERR << FMT_FLOAT(C[c + cb * r]) << " instead of " << FMT_FLOAT(val) << ENDL;
+                CERR << RESET;
                 return false;
             }
         }
     }
 
-    std::cout << GREEN;
+    COUT << GREEN;
     printf("✔️  Check passed\n");
-    std::cout << RESET;
+    COUT << RESET;
 
     return true;
 }

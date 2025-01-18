@@ -125,14 +125,11 @@ namespace cuda
             // write correction
             cudaMemcpyAsync((void*)(d_ec_matrix + ys[i] * (cols + 1) + xs[i]), h_edc_vals + i, sizeof(float), cudaMemcpyHostToDevice, streams[streamId]);
 
-            if (globals::printMatrices)
+            if (globals::debugPrint)
             {
                 printf("Found correctable error @ C(%d, %d):\n", ys[i] + 1, xs[i] + 1); // math notation (row, col)
-                std::cout << "\tmul " << (collinear_axis == AXIS_X ? "col ↓" : "row →") << " checksum = ";
-                if (globals::useIntValues)
-                    std::cout << std::fixed << std::setprecision(0);
-                std::cout << corr_checksums[i] << std::endl;
-                std::cout << "\tcorrected value = " << h_edc_vals[i] << std::endl;
+                COUT << "  mul " << (collinear_axis == AXIS_X ? "col ↓" : "row →") << " checksum = " << FMT_FLOAT(corr_checksums[i]) << ENDL;
+                COUT << "  corrected value = " << h_edc_vals[i] << ENDL;
             }
         }
 

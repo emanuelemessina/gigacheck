@@ -7,11 +7,11 @@
 #include "iomod.h"
 #include <stdio.h>
 
-#define CUDA_CHECK                                                                                 \
-    {                                                                                              \
-        cudaError_t error = cudaGetLastError();                                                    \
-        if (error != cudaSuccess)                                                                  \
-            std::cerr << RED << "CUDA Error: " << cudaGetErrorString(error) << RESET << std::endl; \
+#define CUDA_CHECK                                                                       \
+    {                                                                                    \
+        cudaError_t error = cudaGetLastError();                                          \
+        if (error != cudaSuccess)                                                        \
+            CERR << RED << "CUDA Error: " << cudaGetErrorString(error) << RESET << ENDL; \
     }
 
 #define CEIL_DIV(numerator, denominator) (int)((numerator + denominator - 1) / denominator)

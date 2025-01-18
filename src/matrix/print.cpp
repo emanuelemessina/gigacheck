@@ -27,20 +27,18 @@ void matrix::print(float* mat, int rows, int cols, std::string&& name, int flags
         for (int c = 0; c < cols; c++)
         {
             if (flags & HIGHLIGHT_LAST_ROW && r == rows - 1)
-                std::cout << MAGENTA;
+                COUT << MAGENTA;
 
             if (flags & HIGHLIGHT_LAST_COL && c == cols - 1)
-                std::cout << MAGENTA;
+                COUT << MAGENTA;
 
             if (highlight_row_match && c == (*highlight_cursor).second)
             {
                 highlight_cursor++;
-                std::cout << RED;
+                COUT << RED;
             }
 
-            printf(globals::useIntValues ? "%2.0f " : "%f ", mat[r * cols + c]);
-
-            std::cout << RESET;
+            COUT << FMT_FLOAT(mat[r * cols + c]) << " " << RESET;
         }
 
         printf("\n");

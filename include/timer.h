@@ -13,21 +13,21 @@ inline void print_time(long int nanoseconds)
     if (nanoseconds >= 1'000'000'000)
     {
         double seconds = nanoseconds / 1'000'000'000.0;
-        std::cout << seconds << " s";
+        COUT << seconds << " s";
     }
     else if (nanoseconds >= 1'000'000)
     {
         double milliseconds = nanoseconds / 1'000'000.0;
-        std::cout << milliseconds << " ms";
+        COUT << milliseconds << " ms";
     }
     else if (nanoseconds >= 1'000)
     {
         double microseconds = nanoseconds / 1'000.0;
-        std::cout << microseconds << " us";
+        COUT << microseconds << " us";
     }
     else
     {
-        std::cout << nanoseconds << " ns";
+        COUT << nanoseconds << " ns";
     }
 }
 
@@ -44,7 +44,7 @@ class ScopedTimer
         : name(blockName), mode(mode), start(std::chrono::high_resolution_clock::now())
     {
         if (mode == PRE)
-            std::cout << YELLOW << "⏱️  [" << name << "]" << RESET << std::endl;
+            COUT << YELLOW << "⏱️  [" << name << "]" << RESET << ENDL;
     }
 
     ~ScopedTimer()
@@ -53,16 +53,16 @@ class ScopedTimer
         auto nanoseconds = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
 
         if (mode == PRE)
-            std::cout << YELLOW << "🏁 [" << name << "] " << RESET;
+            COUT << YELLOW << "🏁 [" << name << "] " << RESET;
         else
-            std::cout << "\t➡️  " << CYAN << name << RESET << ": ";
+            COUT << "\t➡️  " << CYAN << name << RESET << ": ";
 
         print_time(nanoseconds);
 
         if (mode == PRE)
-            std::cout << "\n";
+            COUT << "\n";
 
-        std::cout << std::endl;
+        COUT << ENDL;
     }
 
   private:

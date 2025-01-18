@@ -115,7 +115,7 @@ namespace cuda
             CUDA_CHECK
         }
 
-        if (globals::printMatrices)
+        if (globals::debugPrint)
         {
             // print dA and dB (with checksums)
             float* Aec = matrix::alloc(rows_A + 1, cols_A, false);
@@ -154,7 +154,7 @@ namespace cuda
         }
 
         // print dC (with mul checksums)
-        if (globals::printMatrices)
+        if (globals::debugPrint)
         {
             float* Cec = matrix::alloc(ROWS_C + 1, COLS_C + 1, false);
             cudaMemcpy(Cec, dC, size_C_ec, cudaMemcpyDeviceToHost);
@@ -185,7 +185,7 @@ namespace cuda
         }
 
         // print control checksums
-        if (globals::printMatrices)
+        if (globals::debugPrint)
         {
             float *h_rc_control, *h_cc_control;
             cudaMallocHost(&h_rc_control, (ROWS_C + 1) * sizeof(float));

@@ -2,7 +2,6 @@ By priority:
 
 - use batching of single float transfers whenever possible
 - clean code, check documentation/comments
-- code to introduce errors
 - async copy while computing buffering schemes:
     - AB->C (default)
     - AB->C // A'B' (double buffering)
