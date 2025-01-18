@@ -151,12 +151,16 @@ namespace cuda
         float e = 2.718;
         cudaMemcpy(dC + y * (COLS_C + 1) + x, &e, sizeof(float), cudaMemcpyHostToDevice);
 
+        int error_count = 1;
+        int xs[error_count] = {x};
+        int ys[error_count] = {y};
+
+        // print dC (with mul checksums)
         if (globals::printMatrices)
         {
-            // print dC (with mul checksums)
             float* Cec = matrix::alloc(ROWS_C + 1, COLS_C + 1, false);
             cudaMemcpy(Cec, dC, size_C_ec, cudaMemcpyDeviceToHost);
-            matrix::print(Cec, ROWS_C + 1, COLS_C + 1, "C (w/ mul checksums)", HIGHLIGHT_LAST_ROW_AND_COL);
+            matrix::print(Cec, ROWS_C + 1, COLS_C + 1, "C (w/ mul checksums)", HIGHLIGHT_LAST_ROW_AND_COL, xs, ys, error_count);
             free(Cec);
         }
 
@@ -182,9 +186,9 @@ namespace cuda
             CUDA_CHECK
         }
 
+        // print control checksums
         if (globals::printMatrices)
         {
-            // print control checksums
             float *h_rc_control, *h_cc_control;
             cudaMallocHost(&h_rc_control, (ROWS_C + 1) * sizeof(float));
             cudaMallocHost(&h_cc_control, (COLS_C + 1) * sizeof(float));
@@ -192,8 +196,9 @@ namespace cuda
             cudaMemcpyAsync(h_cc_control, d_cc_control, (COLS_C + 1) * sizeof(float), cudaMemcpyDeviceToHost, streams[1]);
             cudaDeviceSynchronize();
             CUDA_CHECK
-            matrix::print(h_rc_control, ROWS_C + 1, 1, "C control row checksum", HIGHLIGHT_LAST_COL);
-            matrix::print(h_cc_control, 1, COLS_C + 1, "C control column checksum", HIGHLIGHT_LAST_ROW);
+            int zero = 0;
+            matrix::print(h_rc_control, ROWS_C + 1, 1, "C control row checksum", HIGHLIGHT_LAST_COL, &zero, ys, 1);
+            matrix::print(h_cc_control, 1, COLS_C + 1, "C control column checksum", HIGHLIGHT_LAST_ROW, xs, &zero, 1);
             cudaFreeHost(h_rc_control);
             cudaFreeHost(h_cc_control);
             CUDA_CHECK

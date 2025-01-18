@@ -8,9 +8,9 @@
             "program": "${workspaceFolder}/build/debug/gigacheck",
             "args": [
                 "-ra",
-                "4",
+                "3",
                 "-ca",
-                "5",
+                "3",
                 "-cb",
                 "3",
                 "-i",

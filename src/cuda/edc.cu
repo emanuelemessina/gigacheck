@@ -1,5 +1,7 @@
 #include "edc.cuh"
 #include "kernels.cuh"
+#include <iomanip>
+#include <iostream>
 
 namespace cuda
 {
@@ -99,29 +101,27 @@ namespace cuda
 
             kernels::sum_axis_except<<<1, tileDim.x, linearDimToBytes(tileDim.x), streams[streamId]>>>(d_ec_matrix, rows, cols, collinear_axis, sum_axis_index, exclude_index, (float*)(dSum + i));
 
-            cudaDeviceSynchronize();
-            CUDA_CHECK
-
             cudaMemcpyAsync(h_edc_vals + i, dSum + i, sizeof(float), cudaMemcpyDeviceToHost, streams[streamId]);
-
-            cudaDeviceSynchronize();
-            CUDA_CHECK
 
             // calculate correction
 
             float checksum;
             cudaMemcpyAsync(&checksum, (collinear_axis == AXIS_X ? d_ec_matrix + rows * (cols + 1) + xs[i] : d_rc_control + ys[i] * (cols + 1) + cols), sizeof(float), cudaMemcpyDeviceToHost, streams[streamId]);
 
-            cudaDeviceSynchronize();
-            CUDA_CHECK
-
             h_edc_vals[i] = checksum - h_edc_vals[i];
 
             // write correction
             cudaMemcpyAsync((void*)(d_ec_matrix + ys[i] * (cols + 1) + xs[i]), h_edc_vals + i, sizeof(float), cudaMemcpyHostToDevice, streams[streamId]);
 
-            cudaDeviceSynchronize();
-            CUDA_CHECK
+            if (globals::printMatrices)
+            {
+                printf("Found correctable error @ C(%d, %d):\n", ys[i] + 1, xs[i] + 1); // math notation (row, col)
+                std::cout << "\tmul " << (collinear_axis == AXIS_X ? "col ↓" : "row →") << " checksum = ";
+                if (globals::useIntValues)
+                    std::cout << std::fixed << std::setprecision(0);
+                std::cout << checksum << std::endl;
+                std::cout << "\tcorrected value = " << h_edc_vals[i] << std::endl;
+            }
         }
 
         cudaDeviceSynchronize();

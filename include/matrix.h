@@ -29,8 +29,11 @@ namespace matrix
      * @param[in]   rows  #rows
      * @param[in]   cols  #cols
      * @param[in]   name  The name of the matrix (optional)
+     * @param highlight_xs x coords of the elements to highlight
+     * @param highlight_xs y coords of the elements to highlight
+     * @param highlight_count number of elements to highlight -> length of xs (and ys)
      */
-    void print(float* mat, int rows, int cols, std::string&& name = "", int flags = 0);
+    void print(float* mat, int rows, int cols, std::string&& name = "", int flags = 0, int* highlight_xs = nullptr, int* highlight_ys = nullptr, int highlight_count = 0);
 
     /**
      * @brief Checks that the matrix product C = A*B is correct. The function will
