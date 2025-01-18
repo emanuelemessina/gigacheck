@@ -24,8 +24,8 @@ int main(int argc, char* argv[])
         .option({"ra", "rows-a", 100, "A rows"})
         .option({"ca", "cols-a", 100, "A cols"})
         .option({"cb", "cols-b", 100, "B cols"})
-        .option({"r", "redundancy", 0, "Redundancy Level"})
-        .option({"e", "errors", 0, "Introduced errors amount"});
+        .option({"e", "errors", 0, "Introduced errors count, must be < max(ra,cb)"})
+        .option({"ce", "collinear-errors", false, "If errors_count > 1, whether they should be arranged on the same axis (correctable)"});
 
     // cli parse
 
@@ -70,14 +70,14 @@ int main(int argc, char* argv[])
     auto vanilla = cli.get("vanilla").getValue<bool>();
     auto check = cli.get("check").getValue<bool>();
 
-    auto redundancy = cli.get("redundancy").getValue<int>();
     auto errors = cli.get("errors").getValue<int>();
+    auto collinear_errors = cli.get("collinear-errors").getValue<bool>();
 
     auto ra = cli.get("rows-a").getValue<int>();
     auto ca = cli.get("cols-a").getValue<int>();
     auto cb = cli.get("cols-b").getValue<int>();
 
-    result = programs::gigacheck(ra, ca, cb, vanilla, check);
+    result = programs::gigacheck(ra, ca, cb, vanilla, check, errors, collinear_errors);
 
     // end
 

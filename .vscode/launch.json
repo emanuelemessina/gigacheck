@@ -16,6 +16,8 @@
                 "-i",
                 "-c",
                 "-p",
+                "-e",
+                "1"
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}/build/debug",

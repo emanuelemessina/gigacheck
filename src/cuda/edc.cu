@@ -46,7 +46,7 @@ namespace cuda
 #define AXIS_X REDUCE_ALONG_COL
 #define AXIS_Y REDUCE_ALONG_ROW
 
-        int collinear_axis = mismatch_info[MISMATCH_COUNT_X] == 1 ? AXIS_X : AXIS_Y;
+        int collinear_axis = mismatch_info[MISMATCH_COUNT_X] == 1 ? AXIS_Y : AXIS_X; // only 1 mismatch found in x implies the collinear axis must be y and viceversa
         int num_errors = mismatch_info[MISMATCH_COUNT_X] == 1 ? mismatch_info[MISMATCH_COUNT_Y] : mismatch_info[MISMATCH_COUNT_X];
 
         if ((mismatch_info[MISMATCH_COUNT_X] | mismatch_info[MISMATCH_COUNT_Y]) == 0)
@@ -79,6 +79,11 @@ namespace cuda
         cudaMemcpyAsync(xs, dXs, num_errors * sizeof(float), cudaMemcpyDeviceToHost, streams[0]);
         cudaMemcpyAsync(ys, dYs, num_errors * sizeof(float), cudaMemcpyDeviceToHost, streams[1]);
 
+        // allocate correction checksums
+
+        float* corr_checksums;
+        cudaMallocHost(&corr_checksums, num_errors * sizeof(float));
+
         // allocate host correction values
         float* h_edc_vals;
         cudaMallocHost(&h_edc_vals, num_errors * sizeof(float));
@@ -92,7 +97,13 @@ namespace cuda
 
         for (int i = 0; i < num_errors; ++i)
         {
-            int streamId = num_errors % globals::numStreams;
+            int streamId = i % globals::numStreams;
+
+            // correct collinear coords (one kernel found only 1 mismatch, need to duplicate the single coord)
+            if (collinear_axis == AXIS_X) // only 1 y
+                ys[i] = ys[0];
+            else // only 1 x
+                xs[i] = xs[0];
 
             // one-off sum on opposite axis of the collinear one
 
@@ -105,10 +116,11 @@ namespace cuda
 
             // calculate correction
 
-            float checksum;
-            cudaMemcpyAsync(&checksum, (collinear_axis == AXIS_X ? d_ec_matrix + rows * (cols + 1) + xs[i] : d_rc_control + ys[i] * (cols + 1) + cols), sizeof(float), cudaMemcpyDeviceToHost, streams[streamId]);
+            cudaMemcpyAsync(corr_checksums + i, (collinear_axis == AXIS_X ? d_ec_matrix + rows * (cols + 1) + xs[i] : d_ec_matrix + ys[i] * (cols + 1) + cols), sizeof(float), cudaMemcpyDeviceToHost, streams[streamId]);
+            cudaStreamSynchronize(streams[streamId]);
+            CUDA_CHECK
 
-            h_edc_vals[i] = checksum - h_edc_vals[i];
+            h_edc_vals[i] = corr_checksums[i] - h_edc_vals[i];
 
             // write correction
             cudaMemcpyAsync((void*)(d_ec_matrix + ys[i] * (cols + 1) + xs[i]), h_edc_vals + i, sizeof(float), cudaMemcpyHostToDevice, streams[streamId]);
@@ -119,7 +131,7 @@ namespace cuda
                 std::cout << "\tmul " << (collinear_axis == AXIS_X ? "col ↓" : "row →") << " checksum = ";
                 if (globals::useIntValues)
                     std::cout << std::fixed << std::setprecision(0);
-                std::cout << checksum << std::endl;
+                std::cout << corr_checksums[i] << std::endl;
                 std::cout << "\tcorrected value = " << h_edc_vals[i] << std::endl;
             }
         }
@@ -130,6 +142,7 @@ namespace cuda
 
         cudaFree(dSum);
         cudaFreeHost(h_edc_vals);
+        cudaFreeHost(corr_checksums);
 
         CUDA_CHECK
 

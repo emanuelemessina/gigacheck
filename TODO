@@ -1,6 +1,7 @@
 By priority:
 
-- convert memcopy of single int/floats to memsets, clean code, check documentation/comments
+- use batching of single float transfers whenever possible
+- clean code, check documentation/comments
 - code to introduce errors
 - async copy while computing buffering schemes:
     - AB->C (default)

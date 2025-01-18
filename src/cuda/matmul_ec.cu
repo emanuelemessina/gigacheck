@@ -8,7 +8,7 @@
 
 namespace cuda
 {
-    EDCResult matmul_ec(float* A, float* B, float* C, int rows_A, int cols_A, int cols_B)
+    EDCResult matmul_ec(float* A, float* B, float* C, int rows_A, int cols_A, int cols_B, int errors_count, int* error_xs, int* error_ys, float* error_values)
     {
         // register host pointers as pinned
 
@@ -143,24 +143,22 @@ namespace cuda
         }
 
         // simulate errors by altering dC
+        {
+            ScopedTimer timer("introduce error(s)", POST);
 
-        // error coords
-        int x = 2;
-        int y = 1;
-        // error
-        float e = 2.718;
-        cudaMemcpy(dC + y * (COLS_C + 1) + x, &e, sizeof(float), cudaMemcpyHostToDevice);
+            for (int i = 0; i < errors_count; i++)
+                cudaMemcpyAsync(dC + error_ys[i] * (COLS_C + 1) + error_xs[i], &(error_values[i]), sizeof(float), cudaMemcpyHostToDevice, streams[i % globals::numStreams]);
 
-        int error_count = 1;
-        int xs[error_count] = {x};
-        int ys[error_count] = {y};
+            cudaDeviceSynchronize();
+            CUDA_CHECK
+        }
 
         // print dC (with mul checksums)
         if (globals::printMatrices)
         {
             float* Cec = matrix::alloc(ROWS_C + 1, COLS_C + 1, false);
             cudaMemcpy(Cec, dC, size_C_ec, cudaMemcpyDeviceToHost);
-            matrix::print(Cec, ROWS_C + 1, COLS_C + 1, "C (w/ mul checksums)", HIGHLIGHT_LAST_ROW_AND_COL, xs, ys, error_count);
+            matrix::print(Cec, ROWS_C + 1, COLS_C + 1, "C (w/ mul checksums)", HIGHLIGHT_LAST_ROW_AND_COL, error_xs, error_ys, errors_count);
             free(Cec);
         }
 
@@ -196,9 +194,9 @@ namespace cuda
             cudaMemcpyAsync(h_cc_control, d_cc_control, (COLS_C + 1) * sizeof(float), cudaMemcpyDeviceToHost, streams[1]);
             cudaDeviceSynchronize();
             CUDA_CHECK
-            int zero = 0;
-            matrix::print(h_rc_control, ROWS_C + 1, 1, "C control row checksum", HIGHLIGHT_LAST_COL, &zero, ys, 1);
-            matrix::print(h_cc_control, 1, COLS_C + 1, "C control column checksum", HIGHLIGHT_LAST_ROW, xs, &zero, 1);
+            std::vector<int> zeros(errors_count, 0);
+            matrix::print(h_rc_control, ROWS_C + 1, 1, "C control row checksum", HIGHLIGHT_LAST_COL, zeros.data(), error_ys, errors_count);
+            matrix::print(h_cc_control, 1, COLS_C + 1, "C control column checksum", HIGHLIGHT_LAST_ROW, error_xs, zeros.data(), errors_count);
             cudaFreeHost(h_rc_control);
             cudaFreeHost(h_cc_control);
             CUDA_CHECK

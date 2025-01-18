@@ -14,7 +14,7 @@ bool matrix::check_product(float* A, float* B, float* C, int ra, int ca, int cb)
             if (C[c + cb * r] != val)
             {
                 std::cerr << RED;
-                fprintf(stderr, "❌ Check failed @ (%d, %d): got ", r, c);
+                fprintf(stderr, "❌ Check failed @ (%d, %d): got ", r + 1, c + 1);
                 fprintf(stderr, globals::useIntValues ? "%2.0f instead of %2.0f" : "%f instead of %f", C[c + cb * r], val);
                 fprintf(stderr, "\n");
                 std::cerr << RESET;
