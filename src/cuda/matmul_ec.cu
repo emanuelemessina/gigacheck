@@ -115,9 +115,9 @@ namespace cuda
             CUDA_CHECK
         }
 
+        // print dA and dB (with checksums)
         if (globals::debugPrint)
         {
-            // print dA and dB (with checksums)
             float* Aec = matrix::alloc(rows_A + 1, cols_A, false);
             float* Bec = matrix::alloc(ROWS_B, cols_B + 1, false);
             cudaMemcpy(Aec, dA, size_A_ec, cudaMemcpyDeviceToHost);
@@ -142,7 +142,7 @@ namespace cuda
             CUDA_CHECK
         }
 
-        // simulate errors by altering dC
+        // introduce errors in dC
         {
             ScopedTimer timer("introduce error(s)", POST);
 
@@ -220,11 +220,8 @@ namespace cuda
         {
             ScopedTimer timer("C to host", POST);
 
-            for (int r = 0; r < ROWS_C; ++r)
-            {
-                // copy row without last column
+            for (int r = 0; r < ROWS_C; ++r) // copy row without last column
                 cudaMemcpyAsync(C + r * COLS_C, dC + r * (COLS_C + 1), COLS_C * sizeof(float), cudaMemcpyDeviceToHost, streams[r % globals::numStreams]);
-            }
 
             cudaDeviceSynchronize();
 

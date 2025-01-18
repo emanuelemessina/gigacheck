@@ -63,7 +63,7 @@ namespace programs
                 std::vector<int> error_xs, error_ys;
                 std::vector<float> error_values;
 
-                if (errors_count > 0)
+                if (errors_count > 0) // generate errors
                 {
                     bool align_on_x = std::rand() % 2;
                     int fixed_coord = std::rand() % (align_on_x ? rc : cc);
