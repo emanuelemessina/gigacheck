@@ -62,7 +62,7 @@ namespace cuda
         // we found that depth-first gives better performance
 
         {
-            ScopedTimer timer("A,B to device + calc input checksums", POST);
+            ScopedTimer timer("A,B to device + compute input checksums", POST);
 
             // copy A to device
 
@@ -153,7 +153,7 @@ namespace cuda
 
         // compute control checksums after mul
         {
-            ScopedTimer timer("calc control checksums", POST);
+            ScopedTimer timer("compute control checksums", POST);
 
             // compute col control checksum
 
@@ -196,7 +196,7 @@ namespace cuda
         EDCResult edc_res;
 
         {
-            ScopedTimer timer("EDC", POST);
+            ScopedTimer timer("error detection (+ correction)", POST);
 
             edc_res = errors_detect_correct(dC, ROWS_C, COLS_C, d_cc_control, d_rc_control, streams);
 

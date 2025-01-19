@@ -80,19 +80,6 @@ namespace kernels
     __global__ void tiled_matmul(float* A, float* B, float* C, int rows_A, int cols_A, int cols_B);
 
     /**
-     * @brief Computes the sum of all elements in a matrix with checksums row and col, except the element at the specified index along the given direction.
-     *
-     * @param ec_matrix_start Pointer to the start of a row/col of a matrix with checksums row and col.
-     * @param rows Number of rows in the matrix (checksum excluded).
-     * @param cols Number of columns in the matrix (checksum excluded).
-     * @param reduction_direction Either along rows or columns
-     * @param reduction_axis_index Index of the row/col where to perform the sum
-     * @param exclude_index The index of the element to be excluded from the sum (along the given direction).
-     * @param result Pointer to the output float where the result will be stored.
-     */
-    __global__ void sum_axis_except(const float* ec_matrix_start, int rows, int cols, ReductionDirection reduction_direction, int reduction_axis_index, int exclude_index, float* result);
-
-    /**
      * @brief Kernel function to find checksum mismatches in an error correction matrix.
      *
      * This kernel compares the row or col checksums in the error correction matrix with a given control checksum
