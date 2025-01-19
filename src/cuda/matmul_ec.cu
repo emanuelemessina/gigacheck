@@ -73,7 +73,7 @@ namespace cuda
             gridDim = dim3(cols_A);
             blockDim = dim3(1, tileDim.y);
             sharedMemSize = linearDimToBytes(tileDim.y);
-            kernels::compute_checksums<<<gridDim, blockDim, sharedMemSize, streams[0]>>>(dA, rows_A, cols_A, REDUCE_ALONG_COL);
+            kernels::compute_checksums<<<gridDim, blockDim, sharedMemSize, streams[0]>>>(dA, rows_A, cols_A, ReductionDirection::ALONG_COL);
 
             // copy B to device
 
@@ -109,7 +109,7 @@ namespace cuda
             gridDim = dim3(1, ROWS_B);
             blockDim = dim3(tileDim.x, 1);
             sharedMemSize = linearDimToBytes(tileDim.x);
-            kernels::compute_checksums<<<gridDim, blockDim, sharedMemSize, streams[1]>>>(dB, ROWS_B, cols_B, REDUCE_ALONG_ROW);
+            kernels::compute_checksums<<<gridDim, blockDim, sharedMemSize, streams[1]>>>(dB, ROWS_B, cols_B, ReductionDirection::ALONG_ROW);
 
             cudaDeviceSynchronize();
             CUDA_CHECK
@@ -171,14 +171,14 @@ namespace cuda
             gridDim = dim3(COLS_C + 1);
             blockDim = dim3(1, tileDim.y);
             sharedMemSize = linearDimToBytes(tileDim.y);
-            kernels::compute_checksums<<<gridDim, blockDim, sharedMemSize, streams[0]>>>(dC, ROWS_C, (COLS_C + 1), REDUCE_ALONG_COL, d_cc_control);
+            kernels::compute_checksums<<<gridDim, blockDim, sharedMemSize, streams[0]>>>(dC, ROWS_C, (COLS_C + 1), ReductionDirection::ALONG_COL, d_cc_control);
 
             // compute row control checksum
 
             gridDim = dim3(1, ROWS_C + 1);
             blockDim = dim3(tileDim.x, 1);
             sharedMemSize = linearDimToBytes(tileDim.x);
-            kernels::compute_checksums<<<gridDim, blockDim, sharedMemSize, streams[1]>>>(dC, (ROWS_C + 1), COLS_C, REDUCE_ALONG_ROW, d_rc_control);
+            kernels::compute_checksums<<<gridDim, blockDim, sharedMemSize, streams[1]>>>(dC, (ROWS_C + 1), COLS_C, ReductionDirection::ALONG_ROW, d_rc_control);
 
             cudaDeviceSynchronize();
             CUDA_CHECK

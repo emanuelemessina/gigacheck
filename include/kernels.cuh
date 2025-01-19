@@ -36,8 +36,17 @@ inline int dim2ToBytes(dim3 dim2)
     return linearDimToBytes(dim2.x) * dim2.y;
 }
 
-#define REDUCE_ALONG_ROW 1
-#define REDUCE_ALONG_COL 0
+enum ReductionDirection
+{
+    ALONG_COL,
+    ALONG_ROW
+};
+
+enum ChecksumCompareMode
+{
+    COL = ReductionDirection::ALONG_COL,
+    ROW = ReductionDirection::ALONG_ROW
+};
 
 namespace kernels
 {
@@ -53,11 +62,9 @@ namespace kernels
      * @param rows Number of rows in the matrix.
      * @param cols Number of columns in the matrix.
      * @param checksum If provided, the checksum vector is stored here instead of in the matrix.
-     * @param reduction_direction Flag indicating the mode of checksum computation.
-     *                              If true (REDUCE_ALONG_ROW), compute checksums for rows;
-     *                              if false (REDUCE_ALONG_COL), compute checksums for columns.
+     * @param compute_direction Flag indicating the mode of checksum computation.
      */
-    __global__ void compute_checksums(float* matrix, int rows, int cols, int reduction_direction, float* checksum = nullptr);
+    __global__ void compute_checksums(float* matrix, int rows, int cols, ReductionDirection compute_direction, float* checksum = nullptr);
 
     /**
      * @brief CUDA kernel to compute the product between two matrices, using the tiled shared
@@ -83,10 +90,7 @@ namespace kernels
      * @param exclude_index The index of the element to be excluded from the sum (along the given direction).
      * @param result Pointer to the output float where the result will be stored.
      */
-    __global__ void sum_axis_except(const float* ec_matrix_start, int rows, int cols, int reduction_direction, int reduction_axis_index, int exclude_index, float* result);
-
-#define COMPARE_CHECKSUM_ROW REDUCE_ALONG_ROW
-#define COMPARE_CHECKSUM_COL REDUCE_ALONG_COL
+    __global__ void sum_axis_except(const float* ec_matrix_start, int rows, int cols, ReductionDirection reduction_direction, int reduction_axis_index, int exclude_index, float* result);
 
     /**
      * @brief Kernel function to find checksum mismatches in an error correction matrix.
@@ -98,10 +102,10 @@ namespace kernels
      * @param rows Number of rows in the matrix (checksum excluded).
      * @param cols Number of columns in the matrix (checksum excluded).
      * @param control_checksum Pointer to the control checksum.
-     * @param comparison_flag Which checksum to compare (row or column).
+     * @param comparison_mode Which checksum to compare (row or column).
      * @param[out] mismatch_count Will contain the number of mismatches encountered.
      * @param[out] mismatch_indexes Will contain the indexes of the mismatches.
      * @param[out] error_flag Will be set to 1 if there is an internal kernel error (eg. encountered more mismatches than allowed).
      */
-    __global__ void find_checksum_mismatches(const float* ec_matrix, int rows, int cols, float* control_checksum, int comparison_flag, int* mismatch_count, int* mismatch_indexes, int* error_flag);
+    __global__ void find_checksum_mismatches(const float* ec_matrix, int rows, int cols, float* control_checksum, ChecksumCompareMode comparison_mode, int* mismatch_count, int* mismatch_indexes, int* error_flag);
 }
