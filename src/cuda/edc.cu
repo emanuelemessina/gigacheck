@@ -48,6 +48,7 @@ namespace cuda
 
         ReductionDirection collinear_axis = mismatch_info[MISMATCH_COUNT_X] == 1 ? AXIS_Y : AXIS_X; // only 1 mismatch found in x implies the collinear axis must be y and viceversa
         int num_errors = mismatch_info[MISMATCH_COUNT_X] == 1 ? mismatch_info[MISMATCH_COUNT_Y] : mismatch_info[MISMATCH_COUNT_X];
+        int non_discarded = 0;
 
         if ((mismatch_info[MISMATCH_COUNT_X] | mismatch_info[MISMATCH_COUNT_Y]) == 0)
         {
@@ -105,6 +106,12 @@ namespace cuda
             else // only 1 x
                 error_xs[i] = error_xs[0];
 
+            // discard errors on checksum vectors
+            if (error_xs[i] == cols || error_ys[i] == rows)
+                continue;
+
+            non_discarded++;
+
             // one-off sum on opposite axis of the collinear one
 
             int exclude_index = collinear_axis == AXIS_X ? error_ys[i] : error_xs[i];
@@ -142,6 +149,9 @@ namespace cuda
         cudaFreeHost(correction_checksums);
 
         CUDA_CHECK
+
+        if (non_discarded == 0)
+            edc_res = NO_ERROR;
 
     cleanup:
 
