@@ -27,9 +27,6 @@ namespace cuda
 
         CUDA_CHECK
 
-        // allocate mem copy events
-        std::vector<cudaEvent_t> memcpyEvents(EDC_MAX_ERRORS);
-
 #define MISMATCH_COUNT_X 0
 #define ERROR_X 1
 #define MISMATCH_COUNT_Y 2
@@ -101,6 +98,10 @@ namespace cuda
         float* corrected_vals;
         cudaMallocHost(&corrected_vals, num_errors * sizeof(float));
 
+        // allocate copy events
+        cudaEvent_t* memcpyEvents;
+        cudaMallocHost((void**)&memcpyEvents, num_errors * sizeof(cudaEvent_t)); // avoid transfer of control bypass goto compile error, allows to allocate only when needed
+
         // create copy events
         for (int s = 0; s < num_errors; ++s)
             cudaEventCreate(&memcpyEvents[s]);
@@ -161,6 +162,7 @@ namespace cuda
         cudaFreeHost(correction_checksums);
         cudaFreeHost(error_values);
         cudaFreeHost(control_checksums);
+        cudaFreeHost(memcpyEvents);
 
         for (int s = 0; s < num_errors; ++s)
             cudaEventDestroy(memcpyEvents[s]);

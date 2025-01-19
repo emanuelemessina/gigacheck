@@ -8,6 +8,7 @@
 #include "programs.h"
 #include "timer.h"
 #include <cstdlib>
+#include <set>
 #include <tuple>
 #include <vector>
 
@@ -63,19 +64,28 @@ namespace programs
                 std::vector<int> error_xs, error_ys;
                 std::vector<float> error_values;
 
+                std::set<std::pair<int, int>> error_points;
+                int limit_y = rc + 1;
+                int limit_x = cc + 1;
+
                 if (errors_count > 0) // generate errors
                 {
                     bool align_on_x = std::rand() % 2;
-                    int fixed_coord = std::rand() % (align_on_x ? rc : cc);
+                    int fixed_coord = std::rand() % (align_on_x ? limit_y : limit_x);
 
-                    for (int i = 0; i < errors_count; ++i)
+                    while (error_points.size() < errors_count)
                     {
-                        int x = collinear_errors ? (align_on_x ? random_int(cc) : fixed_coord) : random_int(cc);
-                        int y = collinear_errors ? (align_on_x ? fixed_coord : random_int(rc)) : random_int(rc);
+                        int x = collinear_errors ? (align_on_x ? random_int(limit_x) : fixed_coord) : random_int(limit_x);
+                        int y = collinear_errors ? (align_on_x ? fixed_coord : random_int(limit_y)) : random_int(limit_y);
+                        std::pair<int, int> point = std::make_pair(x, y);
 
-                        error_xs.push_back(x);
-                        error_ys.push_back(y);
-                        error_values.push_back(random_float(globals::useIntValues));
+                        if (error_points.find(point) == error_points.end())
+                        {
+                            error_points.insert(point);
+                            error_xs.push_back(x);
+                            error_ys.push_back(y);
+                            error_values.push_back(random_float(globals::useIntValues));
+                        }
                     }
                 }
 
@@ -84,6 +94,7 @@ namespace programs
                 if (edc_res == cuda::UNCORRECTABLE_ERROR)
                 {
                     COUT << "😐 Uncorrectable error encountered, multiplication failed." << ENDL;
+                    // choice: dont' check with cpu if we already know there's an error
                     check = false;
                 }
                 else if (edc_res == cuda::CORRECTED_ERROR)

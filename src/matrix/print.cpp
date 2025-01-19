@@ -22,8 +22,6 @@ void matrix::print(float* mat, int rows, int cols, std::string&& name, int flags
 
     for (int r = 0; r < rows; r++)
     {
-        bool highlight_row_match = highlight_cursor != highlights.cend() && r == (*highlight_cursor).first;
-
         for (int c = 0; c < cols; c++)
         {
             if (flags & HIGHLIGHT_LAST_ROW && r == rows - 1)
@@ -31,6 +29,8 @@ void matrix::print(float* mat, int rows, int cols, std::string&& name, int flags
 
             if (flags & HIGHLIGHT_LAST_COL && c == cols - 1)
                 COUT << MAGENTA;
+
+            bool highlight_row_match = highlight_cursor != highlights.cend() && r == (*highlight_cursor).first;
 
             if (highlight_row_match && c == (*highlight_cursor).second)
             {

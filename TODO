@@ -1,5 +1,6 @@
 By priority:
 
+- async allocation??
 - async copy while computing buffering schemes:
     - AB->C (default)
     - AB->C // A'B' (double buffering)

@@ -79,30 +79,21 @@ namespace cuda
 
             // since B contains the checksum we have to copy it row by row, we divide the load into multiple streams from [1] to [numStreams-1] (diffent from the A stream[0])
 
-            std::vector<cudaEvent_t> memcpyEvents(globals::numStreams - 1);
-
-            for (int s = 0; s < globals::numStreams - 1; ++s)
-                cudaEventCreate(&memcpyEvents[s]);
+            cudaEvent_t b_memcpyEvent;
+            cudaEventCreate(&b_memcpyEvent);
 
             for (int r = 0; r < ROWS_B; ++r)
             {
                 int streamIdx = r % (globals::numStreams - 1) + 1;
                 cudaMemcpyAsync(dB + r * (cols_B + 1), B + r * cols_B, cols_B * sizeof(float), cudaMemcpyHostToDevice, streams[streamIdx]);
-
-                // record an event in the stream (only the last copy operation in each stream needs to record)
-                if (r >= ROWS_B - (globals::numStreams - 1))
-                {
-                    cudaEventRecord(memcpyEvents[streamIdx - 1], streams[streamIdx]);
-                }
             }
+
+            cudaEventRecord(b_memcpyEvent, streams[1]);
 
             // calculate row checksums for B
 
-            for (int s = 0; s < globals::numStreams - 1; ++s) // wait for all the copy streams to finish
-            {
-                cudaStreamWaitEvent(streams[1], memcpyEvents[s]);
-                cudaEventDestroy(memcpyEvents[s]);
-            }
+            cudaStreamWaitEvent(streams[1], b_memcpyEvent);
+            cudaEventDestroy(b_memcpyEvent);
 
             gridDim = dim3(1, ROWS_B);
             blockDim = dim3(tileDim.x, 1);
@@ -209,8 +200,9 @@ namespace cuda
 
             edc_res = errors_detect_correct(dC, ROWS_C, COLS_C, d_cc_control, d_rc_control, streams);
 
-            if (edc_res == UNCORRECTABLE_ERROR)
-                goto cleanup;
+            // choice: don't send back the result if it's wrong
+            // if (edc_res == UNCORRECTABLE_ERROR)
+            //    goto cleanup;
         }
 
         // send back result (without checksums)
@@ -226,7 +218,7 @@ namespace cuda
             CUDA_CHECK
         }
 
-    cleanup:
+        // cleanup:
 
         for (int i = 0; i < globals::numStreams; ++i)
         {
