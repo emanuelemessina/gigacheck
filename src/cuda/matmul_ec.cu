@@ -82,9 +82,7 @@ namespace cuda
             std::vector<cudaEvent_t> memcpyEvents(globals::numStreams - 1);
 
             for (int s = 0; s < globals::numStreams - 1; ++s)
-            {
                 cudaEventCreate(&memcpyEvents[s]);
-            }
 
             for (int r = 0; r < ROWS_B; ++r)
             {
