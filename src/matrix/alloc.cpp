@@ -1,3 +1,4 @@
+#include "generate.h"
 #include "matrix.h"
 
 float* matrix::alloc(int rows, int cols, bool initialize)
@@ -9,7 +10,7 @@ float* matrix::alloc(int rows, int cols, bool initialize)
 
     for (int r = 0; r < rows; r++)
         for (int c = 0; c < cols; c++)
-            tmp[r * cols + c] = globals::useIntValues ? (float)(rand() % 5) : (float)rand() / RAND_MAX;
+            tmp[r * cols + c] = random_float(globals::useIntValues);
 
     return tmp;
 }

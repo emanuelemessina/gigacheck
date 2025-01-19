@@ -7,11 +7,11 @@
 #include "iomod.h"
 #include <stdio.h>
 
-#define CUDA_CHECK                                                                                 \
-    {                                                                                              \
-        cudaError_t error = cudaGetLastError();                                                    \
-        if (error != cudaSuccess)                                                                  \
-            std::cerr << RED << "CUDA Error: " << cudaGetErrorString(error) << RESET << std::endl; \
+#define CUDA_CHECK                                                                       \
+    {                                                                                    \
+        cudaError_t error = cudaGetLastError();                                          \
+        if (error != cudaSuccess)                                                        \
+            CERR << RED << "CUDA Error: " << cudaGetErrorString(error) << RESET << ENDL; \
     }
 
 #define CEIL_DIV(numerator, denominator) (int)((numerator + denominator - 1) / denominator)
@@ -36,17 +36,25 @@ inline int dim2ToBytes(dim3 dim2)
     return linearDimToBytes(dim2.x) * dim2.y;
 }
 
+enum ReductionDirection
+{
+    ALONG_COL,
+    ALONG_ROW
+};
+
+enum ChecksumCompareMode
+{
+    COL = ReductionDirection::ALONG_COL,
+    ROW = ReductionDirection::ALONG_ROW
+};
+
 namespace kernels
 {
-
-#define CHECKSUM_COMPUTE_ROW 1
-#define CHECKSUM_COMPUTE_COL 0
-
     /**
      * @brief Computes checksums for a given matrix.
      *
      * This CUDA kernel computes checksums for a given matrix. The checksums can be computed
-     * either for rows or columns based on the `checksum_compute_mode` parameter.
+     * either for rows or columns based on the `reduction_direction` parameter.
      *
      * @note The checksum is stored, unless the checksum vector is provided, in the last row (for column checksums) or the last column (for row checksums) directly in the matrix itself. Thus the matrix is assumed to have 1 extra row or column than what specified by the `rows` and `cols` parameters.
      *
@@ -54,11 +62,9 @@ namespace kernels
      * @param rows Number of rows in the matrix.
      * @param cols Number of columns in the matrix.
      * @param checksum If provided, the checksum vector is stored here instead of in the matrix.
-     * @param checksum_compute_mode Boolean flag indicating the mode of checksum computation.
-     *                              If true (CHECKSUM_COMPUTE_ROW), compute checksums for rows;
-     *                              if false (CHECKSUM_COMPUTE_COL), compute checksums for columns.
+     * @param compute_direction Flag indicating the mode of checksum computation.
      */
-    __global__ void compute_checksums(float* matrix, int rows, int cols, bool checksum_compute_mode, float* checksum = nullptr);
+    __global__ void compute_checksums(float* matrix, int rows, int cols, ReductionDirection compute_direction, float* checksum = nullptr);
 
     /**
      * @brief CUDA kernel to compute the product between two matrices, using the tiled shared
@@ -72,4 +78,21 @@ namespace kernels
      * @param[in]   cols_B  #cols in B
      */
     __global__ void tiled_matmul(float* A, float* B, float* C, int rows_A, int cols_A, int cols_B);
+
+    /**
+     * @brief Kernel function to find checksum mismatches in an error correction matrix.
+     *
+     * This kernel compares the row or col checksums in the error correction matrix with a given control checksum
+     * and identifies mismatches. It updates the mismatch count and records the indexes of mismatched rows/columns.
+     *
+     * @param ec_matrix Pointer to the error correction matrix.
+     * @param rows Number of rows in the matrix (checksum excluded).
+     * @param cols Number of columns in the matrix (checksum excluded).
+     * @param control_checksum Pointer to the control checksum.
+     * @param comparison_mode Which checksum to compare (row or column).
+     * @param[out] mismatch_count Will contain the number of mismatches encountered.
+     * @param[out] mismatch_indexes Will contain the indexes of the mismatches.
+     * @param[out] error_flag Will be set to 1 if there is an internal kernel error (eg. encountered more mismatches than allowed).
+     */
+    __global__ void find_checksum_mismatches(const float* ec_matrix, int rows, int cols, float* control_checksum, ChecksumCompareMode comparison_mode, int* mismatch_count, int* mismatch_indexes, int* error_flag);
 }

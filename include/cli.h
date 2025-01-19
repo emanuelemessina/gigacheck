@@ -1,5 +1,6 @@
 #pragma once
 
+#include "iomod.h"
 #include <algorithm>
 #include <array>
 #include <concepts>
@@ -111,12 +112,12 @@ inline void clamp_int_argument(int& arg, int min, int max)
 {
     if (arg < min)
     {
-        std::cout << std::format("Using min size {}\n", min) << std::endl;
+        COUT << std::format("Using min size {}\n", min) << ENDL;
         arg = min;
     }
     else if (arg > max)
     {
-        std::cout << std::format("Capping to max size {}\n", max) << std::endl;
+        COUT << std::format("Capping to max size {}\n", max) << ENDL;
         arg = max;
     }
 }

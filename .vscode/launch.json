@@ -8,13 +8,16 @@
             "program": "${workspaceFolder}/build/debug/gigacheck",
             "args": [
                 "-ra",
-                "4",
+                "5",
                 "-ca",
                 "5",
                 "-cb",
-                "3",
+                "5",
                 "-i",
+                "-c",
                 "-p",
+                "-e",
+                "2"
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}/build/debug",

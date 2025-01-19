@@ -1,11 +1,10 @@
 By priority:
 
-- safe multiplication kernel with checksums and error correction/detection
+- async allocation??
 - async copy while computing buffering schemes:
     - AB->C (default)
     - AB->C // A'B' (double buffering)
     - AB->C // A'B'->C' (parallel computation)
-- code to introduce errors
 - profile everything
 - can further optimize block sizes, memory... ?
 

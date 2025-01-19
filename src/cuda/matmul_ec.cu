@@ -1,3 +1,5 @@
+#include "cuda.cuh"
+#include "edc.cuh"
 #include "globals.h"
 #include "inferred_matrix_sizes.h"
 #include "kernels.cuh"
@@ -6,7 +8,7 @@
 
 namespace cuda
 {
-    void matmul_ec(float* A, float* B, float* C, int rows_A, int cols_A, int cols_B)
+    EDCResult matmul_ec(float* A, float* B, float* C, int rows_A, int cols_A, int cols_B, int errors_count, int* error_xs, int* error_ys, float* error_values)
     {
         // register host pointers as pinned
 
@@ -28,12 +30,12 @@ namespace cuda
         cudaMalloc(&dB, size_B_ec);
         cudaMalloc(&dC, size_C_ec);
 
-        // allocate control checksums
+        // allocate checksums buffers
 
-        float *ccC, *rcC;
+        float *d_cc_control, *d_rc_control;
 
-        cudaMalloc(&ccC, (COLS_C + 1) * sizeof(float));
-        cudaMalloc(&rcC, (ROWS_C + 1) * sizeof(float));
+        cudaMalloc(&d_cc_control, (COLS_C + 1) * sizeof(float));
+        cudaMalloc(&d_rc_control, (ROWS_C + 1) * sizeof(float));
 
         CUDA_CHECK
 
@@ -60,7 +62,7 @@ namespace cuda
         // we found that depth-first gives better performance
 
         {
-            ScopedTimer timer("A,B to device + checksums", POST);
+            ScopedTimer timer("A,B to device + compute input checksums", POST);
 
             // copy A to device
 
@@ -71,51 +73,40 @@ namespace cuda
             gridDim = dim3(cols_A);
             blockDim = dim3(1, tileDim.y);
             sharedMemSize = linearDimToBytes(tileDim.y);
-            kernels::compute_checksums<<<gridDim, blockDim, sharedMemSize, streams[0]>>>(dA, rows_A, cols_A, CHECKSUM_COMPUTE_COL);
+            kernels::compute_checksums<<<gridDim, blockDim, sharedMemSize, streams[0]>>>(dA, rows_A, cols_A, ReductionDirection::ALONG_COL);
 
             // copy B to device
 
             // since B contains the checksum we have to copy it row by row, we divide the load into multiple streams from [1] to [numStreams-1] (diffent from the A stream[0])
 
-            std::vector<cudaEvent_t> memcpyEvents(globals::numStreams - 1);
-
-            for (int s = 0; s < globals::numStreams - 1; ++s)
-            {
-                cudaEventCreate(&memcpyEvents[s]);
-            }
+            cudaEvent_t b_memcpyEvent;
+            cudaEventCreate(&b_memcpyEvent);
 
             for (int r = 0; r < ROWS_B; ++r)
             {
                 int streamIdx = r % (globals::numStreams - 1) + 1;
                 cudaMemcpyAsync(dB + r * (cols_B + 1), B + r * cols_B, cols_B * sizeof(float), cudaMemcpyHostToDevice, streams[streamIdx]);
-
-                // record an event in the stream (only the last copy operation in each stream needs to record)
-                if (r >= ROWS_B - (globals::numStreams - 1))
-                {
-                    cudaEventRecord(memcpyEvents[streamIdx - 1], streams[streamIdx]);
-                }
             }
+
+            cudaEventRecord(b_memcpyEvent, streams[1]);
 
             // calculate row checksums for B
 
-            for (int s = 0; s < globals::numStreams - 1; ++s) // wait for all the copy streams to finish
-            {
-                cudaStreamWaitEvent(streams[1], memcpyEvents[s]);
-                cudaEventDestroy(memcpyEvents[s]);
-            }
+            cudaStreamWaitEvent(streams[1], b_memcpyEvent);
+            cudaEventDestroy(b_memcpyEvent);
 
             gridDim = dim3(1, ROWS_B);
             blockDim = dim3(tileDim.x, 1);
             sharedMemSize = linearDimToBytes(tileDim.x);
-            kernels::compute_checksums<<<gridDim, blockDim, sharedMemSize, streams[1]>>>(dB, ROWS_B, cols_B, CHECKSUM_COMPUTE_ROW);
+            kernels::compute_checksums<<<gridDim, blockDim, sharedMemSize, streams[1]>>>(dB, ROWS_B, cols_B, ReductionDirection::ALONG_ROW);
 
             cudaDeviceSynchronize();
             CUDA_CHECK
         }
 
-        if (globals::printMatrices)
+        // print dA and dB (with checksums)
+        if (globals::debugPrint)
         {
-            // print dA and dB (with checksums)
             float* Aec = matrix::alloc(rows_A + 1, cols_A, false);
             float* Bec = matrix::alloc(ROWS_B, cols_B + 1, false);
             cudaMemcpy(Aec, dA, size_A_ec, cudaMemcpyDeviceToHost);
@@ -129,7 +120,7 @@ namespace cuda
         // compute the actual matrix multiplication as usual
 
         {
-            ScopedTimer timer("matmul kernel", POST);
+            ScopedTimer timer("tiled matmul", POST);
 
             gridDim = dim3(CEIL_DIV(COLS_C + 1, tileDim.x), CEIL_DIV(ROWS_C + 1, tileDim.y));
             blockDim = tileDim;
@@ -140,73 +131,100 @@ namespace cuda
             CUDA_CHECK
         }
 
-        if (globals::printMatrices)
+        // introduce errors in dC
         {
-            // print dC (with checksums)
-            float* Cec = matrix::alloc(ROWS_C + 1, COLS_C + 1, false);
-            cudaMemcpy(Cec, dC, size_C_ec, cudaMemcpyDeviceToHost);
-            matrix::print(Cec, ROWS_C + 1, COLS_C + 1, "C (w/ checksums)", HIGHLIGHT_LAST_ROW_AND_COL);
-            free(Cec);
-        }
+            ScopedTimer timer("introduce error(s)", POST);
 
-        // compute control checksums after mul
-
-        {
-            ScopedTimer timer("C checksums", POST);
-
-            gridDim = dim3(COLS_C + 1);
-            blockDim = dim3(1, tileDim.y);
-            sharedMemSize = linearDimToBytes(tileDim.y);
-            kernels::compute_checksums<<<gridDim, blockDim, sharedMemSize, streams[0]>>>(dC, ROWS_C, (COLS_C + 1), CHECKSUM_COMPUTE_COL, ccC);
-
-            gridDim = dim3(1, ROWS_C + 1);
-            blockDim = dim3(tileDim.x, 1);
-            sharedMemSize = linearDimToBytes(tileDim.x);
-            kernels::compute_checksums<<<gridDim, blockDim, sharedMemSize, streams[1]>>>(dC, (ROWS_C + 1), COLS_C, CHECKSUM_COMPUTE_ROW, rcC);
+            for (int i = 0; i < errors_count; i++)
+                cudaMemcpyAsync(dC + error_ys[i] * (COLS_C + 1) + error_xs[i], &(error_values[i]), sizeof(float), cudaMemcpyHostToDevice, streams[i % globals::numStreams]);
 
             cudaDeviceSynchronize();
             CUDA_CHECK
         }
 
-        if (globals::printMatrices)
+        // print dC (with mul checksums)
+        if (globals::debugPrint)
         {
-            // print control checksums
-            float* hrcC = matrix::alloc(ROWS_C + 1, 1, false);
-            float* hccC = matrix::alloc(1, COLS_C + 1, false);
-            cudaMemcpy(hrcC, rcC, (ROWS_C + 1) * sizeof(float), cudaMemcpyDeviceToHost);
-            CUDA_CHECK
-            cudaMemcpy(hccC, ccC, (COLS_C + 1) * sizeof(float), cudaMemcpyDeviceToHost);
-            CUDA_CHECK
-            matrix::print(hrcC, ROWS_C + 1, 1, "C control row checksum", HIGHLIGHT_LAST_COL);
-            matrix::print(hccC, 1, COLS_C + 1, "C control column checksum", HIGHLIGHT_LAST_ROW);
-            free(hrcC);
-            free(hccC);
+            float* Cec = matrix::alloc(ROWS_C + 1, COLS_C + 1, false);
+            cudaMemcpy(Cec, dC, size_C_ec, cudaMemcpyDeviceToHost);
+            matrix::print(Cec, ROWS_C + 1, COLS_C + 1, "C (w/ mul checksums)", HIGHLIGHT_LAST_ROW_AND_COL, error_xs, error_ys, errors_count);
+            free(Cec);
         }
 
-        // TODO: perform here error detection, correction
+        // compute control checksums after mul
+        {
+            ScopedTimer timer("compute control checksums", POST);
 
-        // send back result without checksums
+            // compute col control checksum
+
+            gridDim = dim3(COLS_C + 1);
+            blockDim = dim3(1, tileDim.y);
+            sharedMemSize = linearDimToBytes(tileDim.y);
+            kernels::compute_checksums<<<gridDim, blockDim, sharedMemSize, streams[0]>>>(dC, ROWS_C, (COLS_C + 1), ReductionDirection::ALONG_COL, d_cc_control);
+
+            // compute row control checksum
+
+            gridDim = dim3(1, ROWS_C + 1);
+            blockDim = dim3(tileDim.x, 1);
+            sharedMemSize = linearDimToBytes(tileDim.x);
+            kernels::compute_checksums<<<gridDim, blockDim, sharedMemSize, streams[1]>>>(dC, (ROWS_C + 1), COLS_C, ReductionDirection::ALONG_ROW, d_rc_control);
+
+            cudaDeviceSynchronize();
+            CUDA_CHECK
+        }
+
+        // print control checksums
+        if (globals::debugPrint)
+        {
+            float *h_rc_control, *h_cc_control;
+            cudaMallocHost(&h_rc_control, (ROWS_C + 1) * sizeof(float));
+            cudaMallocHost(&h_cc_control, (COLS_C + 1) * sizeof(float));
+            cudaMemcpyAsync(h_rc_control, d_rc_control, (ROWS_C + 1) * sizeof(float), cudaMemcpyDeviceToHost, streams[0]);
+            cudaMemcpyAsync(h_cc_control, d_cc_control, (COLS_C + 1) * sizeof(float), cudaMemcpyDeviceToHost, streams[1]);
+            cudaDeviceSynchronize();
+            CUDA_CHECK
+            std::vector<int> zeros(errors_count, 0);
+            matrix::print(h_rc_control, ROWS_C + 1, 1, "C control row checksum", HIGHLIGHT_LAST_COL, zeros.data(), error_ys, errors_count);
+            matrix::print(h_cc_control, 1, COLS_C + 1, "C control column checksum", HIGHLIGHT_LAST_ROW, error_xs, zeros.data(), errors_count);
+            cudaFreeHost(h_rc_control);
+            cudaFreeHost(h_cc_control);
+            CUDA_CHECK
+        }
+
+        // edc
+
+        EDCResult edc_res;
+
+        {
+            ScopedTimer timer("error detection (+ correction)", POST);
+
+            edc_res = errors_detect_correct(dC, ROWS_C, COLS_C, d_cc_control, d_rc_control, streams);
+
+            // choice: don't send back the result if it's wrong
+            // if (edc_res == UNCORRECTABLE_ERROR)
+            //    goto cleanup;
+        }
+
+        // send back result (without checksums)
 
         {
             ScopedTimer timer("C to host", POST);
 
-            for (int r = 0; r < ROWS_C; ++r)
-            {
+            for (int r = 0; r < ROWS_C; ++r) // copy row without last column
                 cudaMemcpyAsync(C + r * COLS_C, dC + r * (COLS_C + 1), COLS_C * sizeof(float), cudaMemcpyDeviceToHost, streams[r % globals::numStreams]);
-            }
 
-            // destroy all streams
-
-            for (int i = 0; i < globals::numStreams; ++i)
-            {
-                cudaStreamSynchronize(streams[i]); // we have to synch the device but do the loop to destroy anyway, so we synch here the single streams
-                cudaStreamDestroy(streams[i]);
-            }
+            cudaDeviceSynchronize();
 
             CUDA_CHECK
         }
 
-        // cleanup
+        // cleanup:
+
+        for (int i = 0; i < globals::numStreams; ++i)
+        {
+            cudaStreamSynchronize(streams[i]); // we have to synch the device but do the loop to destroy anyway, so we synch here the single streams
+            cudaStreamDestroy(streams[i]);
+        }
 
         delete[] streams;
 
@@ -219,5 +237,7 @@ namespace cuda
         cudaHostUnregister(C);
 
         CUDA_CHECK
+
+        return edc_res;
     }
 }

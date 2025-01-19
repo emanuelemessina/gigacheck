@@ -10,19 +10,19 @@ CLI::CLI(std::string&& description)
 
 void CLI::help()
 {
-    std::cout << "Description:\n\n"
-              << description << "\n"
-              << std::endl;
-    std::cout << "Usage:\n"
-              << name << " [OPTIONS...]\n\n"
-              << "Options:"
-              << std::endl;
+    COUT << "Description:\n\n"
+         << description << "\n"
+         << ENDL;
+    COUT << "Usage:\n"
+         << name << " [OPTIONS...]\n\n"
+         << "Options:"
+         << ENDL;
     for (auto pair : opts)
     {
         const auto opt = pair.second;
-        std::cout << std::setw(10) << std::right << ("-" + opt.shortName + ", ")
-                  << std::setw(15) << std::left << ("--" + opt.longName)
-                  << " " << opt.description << std::endl;
+        COUT << std::setw(10) << std::right << ("-" + opt.shortName + ", ")
+             << std::setw(15) << std::left << ("--" + opt.longName)
+             << " " << opt.description << ENDL;
     }
 }
 
@@ -75,8 +75,8 @@ bool CLI::parse(int argc, char* argv[])
         }
 
         // unrecognized argument
-        std::cerr << RED << "Unknown argument: " << arg << RESET << "\n"
-                  << std::endl;
+        CERR << RED << "Unknown argument: " << arg << RESET << "\n"
+             << ENDL;
         // print help
         help();
         return false;

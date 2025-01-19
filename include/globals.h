@@ -4,7 +4,7 @@
 
 namespace globals
 {
-    extern bool printMatrices;
+    extern bool debugPrint;
     extern bool useIntValues;
     extern int numStreams;
 
