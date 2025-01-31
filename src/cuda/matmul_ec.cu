@@ -6,6 +6,47 @@
 #include "matrix.h"
 #include "timer.h"
 
+/**
+ * @brief Copies a matrix (or a portion of it) to CUDA memory
+ *
+ * It is able to handle also the copy of a block of a matrix.
+ *
+ * Assume we have to copy block (i, j) of a matrix HxW, divided into NxM blocks.
+ *
+ * The block (therefore also the GPU matrix) will have H/N rows and W/M cols.
+ *
+ * To copy the correct block, we have to start at an initial offset that includes:
+ * - a delta of i * W * H/N, to select the correct row of blocks
+ * - an extra delta of j * W/M to select the correct block within the row
+ *
+ * Moreover, if  M != 1 the next row of the matrix is not immediately after the previous one,
+ * but it starts W cells after the previous one starts (next_row_offset)
+ *
+ * @param[in]   matrix                The original, host matrix
+ * @param[out]  dst                   The GPU allocated memory where to copy
+ * @param[in]   rows                  The number of rows that should be copied
+ * @param[in]   cols                  The number of columns that should be copied
+ * @param[in]   initial_offset        How much of the original matrix must be skipped at the beginning
+ * @param[in]   next_row_offset       How much of the original matrix must be skipped to transition to the next row
+ * @param[in]   leave_cell_after_row  If a cell should be left empty after each row (== copying B or a block of B)
+ * @param[in]   completed             a reference to a CUDA event to signal when the copy is finished
+ * @param[in]   streams               an array of all the available streams
+ */
+void cp_matrix_to_CUDA(float* matrix, float* dst, int rows, int cols, int initial_offset, int next_row_offset, bool leave_cell_after_row, cudaEvent_t* completed, cudaStream_t streams[])
+{
+    matrix += initial_offset;
+    for (int i = 0; i < rows; i++)
+    {
+        int streamIdx = i % (globals::numStreams - 1) + 1;
+        cudaMemcpyAsync(dst, matrix, cols * sizeof(float), cudaMemcpyHostToDevice, streams[streamIdx]);
+
+        matrix += next_row_offset;
+        dst += cols + (leave_cell_after_row ? 1 : 0);
+    }
+
+    cudaEventRecord(*completed, streams[1]);
+}
+
 namespace cuda
 {
     EDCResult matmul_ec(float* A, float* B, float* C, int rows_A, int cols_A, int cols_B, int errors_count, int* error_xs, int* error_ys, float* error_values)
@@ -66,7 +107,12 @@ namespace cuda
 
             // copy A to device
 
-            cudaMemcpyAsync(dA, A, SIZE_A_BYTES, cudaMemcpyHostToDevice, streams[0]);
+            // cudaMemcpyAsync(dA, A, SIZE_A_BYTES, cudaMemcpyHostToDevice, streams[0]);
+            cudaEvent_t a_memcpyEvent;
+            cudaEventCreate(&a_memcpyEvent);
+            cp_matrix_to_CUDA(A, dA, rows_A, cols_A, 0, cols_A, false, &a_memcpyEvent, streams);
+            cudaStreamWaitEvent(streams[1], a_memcpyEvent);
+            cudaEventDestroy(a_memcpyEvent);
 
             // calculate col checksums for A
 
@@ -81,15 +127,7 @@ namespace cuda
 
             cudaEvent_t b_memcpyEvent;
             cudaEventCreate(&b_memcpyEvent);
-
-            for (int r = 0; r < ROWS_B; ++r)
-            {
-                int streamIdx = r % (globals::numStreams - 1) + 1;
-                cudaMemcpyAsync(dB + r * (cols_B + 1), B + r * cols_B, cols_B * sizeof(float), cudaMemcpyHostToDevice, streams[streamIdx]);
-            }
-
-            cudaEventRecord(b_memcpyEvent, streams[1]);
-
+            cp_matrix_to_CUDA(B, dB, ROWS_B, cols_B, 0, cols_B, true, &b_memcpyEvent, streams);
             // calculate row checksums for B
 
             cudaStreamWaitEvent(streams[1], b_memcpyEvent);
