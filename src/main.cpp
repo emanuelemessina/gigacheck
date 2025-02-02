@@ -18,7 +18,6 @@ int main(int argc, char* argv[])
         .option({"p", "print", OPTION_BOOL_UNSET, "Print debug info (matrices, checksums, calculations), do not use with big matrices"})
         .option({"c", "check", OPTION_BOOL_UNSET, "Check the GPU product correctness with the CPU (for debugging, do not use with big matrices)"})
         .option({"i", "ints", OPTION_BOOL_UNSET, "Use int values instead of floats (for visualization, still uses floats as underlying type)"})
-        .option({"s", "streams", 4, "Max number of concurrent streams to use (min 2)"})
         .option({"t", "tileside", 32, "Side of square tile blocks / Length of vector blocks"})
         .option({"m", "memory", OPTION_STRING_UNSET, "Max allowed GPU global memory (default: device max) as a human readable memsize string"})
         .option({"ra", "rows-a", 100, "A rows"})
@@ -48,11 +47,9 @@ int main(int argc, char* argv[])
 
     auto print = cli.get("print").getValue<bool>();
     auto ints = cli.get("ints").getValue<bool>();
-    auto streams = cli.get("streams").getValue<int>();
     auto tileside = cli.get("tileside").getValue<int>();
     globals::debugPrint = print;
     globals::useIntValues = ints;
-    globals::numStreams = std::max(streams, 2);
     globals::tileSide = tileside;
 
     auto memory = cli.get("memory").getValue<std::string>();

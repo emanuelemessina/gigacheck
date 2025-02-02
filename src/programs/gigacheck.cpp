@@ -33,13 +33,11 @@ namespace programs
         WOUT << "GPU mul alg: " << (vanilla ? "vanilla" : "error corrected") << ENDL;
         if (!vanilla)
             WOUT << "# errors: " << errors_count << (errors_count > 1 && collinear_errors ? "(collinear)" : "") << ENDL;
-        WOUT << "# streams: " << globals::numStreams << ENDL;
         WOUT << "Tile side: " << globals::tileSide << ENDL;
         printf("\n\n");
 
         COUT << BOLD << "Device info:" << RESET << ENDL;
-        WOUT << "Name: " << info.deviceName
-             << ENDL;
+        WOUT << "Name: " << info.deviceName << ENDL;
         WOUT << "Max Global Mem: " << humanReadableMemSize(globals::maxGlobalMem)
              << ENDL;
         printf("\n\n");
