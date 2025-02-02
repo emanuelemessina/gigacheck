@@ -29,22 +29,27 @@
  * @param[in]   initial_offset        How much of the original matrix must be skipped at the beginning
  * @param[in]   next_row_offset       How much of the original matrix must be skipped to transition to the next row
  * @param[in]   leave_cell_after_row  If a cell should be left empty after each row (== copying B or a block of B)
- * @param[in]   completed             a reference to a CUDA event to signal when the copy is finished
- * @param[in]   streams               an array of all the available streams
+ * @param[in]   stream                The stream on which to work
  */
-void cp_matrix_to_CUDA(float* matrix, float* dst, int rows, int cols, int initial_offset, int next_row_offset, bool leave_cell_after_row, cudaEvent_t* completed, cudaStream_t streams[])
+void cp_matrix_to_CUDA(float* matrix, float* dst, int rows, int cols, int initial_offset, int next_row_offset, bool leave_cell_after_row, cudaStream_t stream)
 {
     matrix += initial_offset;
     for (int i = 0; i < rows; i++)
     {
-        int streamIdx = i % (globals::numStreams - 1) + 1;
-        cudaMemcpyAsync(dst, matrix, cols * sizeof(float), cudaMemcpyHostToDevice, streams[streamIdx]);
+        cudaMemcpyAsync(dst, matrix, cols * sizeof(float), cudaMemcpyHostToDevice, stream);
 
         matrix += next_row_offset;
         dst += cols + (leave_cell_after_row ? 1 : 0);
     }
+}
 
-    cudaEventRecord(*completed, streams[1]);
+void print_CUDA_matrix(float* mat, int rows, int cols, const char* name, int flags, int* highlight_xs, int* highlight_ys, int highlight_count)
+{
+    float* mat_host = matrix::alloc(rows, cols, false);
+    cudaMemcpy(mat_host, mat, rows * cols * sizeof(float), cudaMemcpyDeviceToHost);
+    matrix::print(mat_host, rows, cols, name, flags, highlight_xs, highlight_ys, highlight_count);
+    free(mat_host);
+    CUDA_CHECK
 }
 
 namespace cuda
@@ -81,12 +86,15 @@ namespace cuda
         CUDA_CHECK
 
         // create streams for parallel executions
+        cudaStream_t stream_A;
+        cudaStream_t stream_B;
+        // cudaStream_t stream_Abis;
+        // cudaStream_t stream_Bbis;
 
-        cudaStream_t* streams = new cudaStream_t[globals::numStreams];
-        for (int i = 0; i < globals::numStreams; ++i)
-        {
-            cudaStreamCreate(&streams[i]);
-        }
+        cudaStreamCreate(&stream_A);
+        cudaStreamCreate(&stream_B);
+        // cudaStreamCreate(&stream_Abis);
+        // cudaStreamCreate(&stream_Bbis);
 
         // define threads organization
         dim3 gridDim;
@@ -106,37 +114,22 @@ namespace cuda
             ScopedTimer timer("A,B to device + compute input checksums", POST);
 
             // copy A to device
-
-            // cudaMemcpyAsync(dA, A, SIZE_A_BYTES, cudaMemcpyHostToDevice, streams[0]);
-            cudaEvent_t a_memcpyEvent;
-            cudaEventCreate(&a_memcpyEvent);
-            cp_matrix_to_CUDA(A, dA, rows_A, cols_A, 0, cols_A, false, &a_memcpyEvent, streams);
-            cudaStreamWaitEvent(streams[1], a_memcpyEvent);
-            cudaEventDestroy(a_memcpyEvent);
+            cp_matrix_to_CUDA(A, dA, rows_A, cols_A, 0, cols_A, false, stream_A);
 
             // calculate col checksums for A
-
             gridDim = dim3(cols_A);
             blockDim = dim3(1, tileDim.y);
             sharedMemSize = linearDimToBytes(tileDim.y);
-            kernels::compute_checksums<<<gridDim, blockDim, sharedMemSize, streams[0]>>>(dA, rows_A, cols_A, ReductionDirection::ALONG_COL);
+            kernels::compute_checksums<<<gridDim, blockDim, sharedMemSize, stream_A>>>(dA, rows_A, cols_A, ReductionDirection::ALONG_COL);
 
             // copy B to device
+            cp_matrix_to_CUDA(B, dB, ROWS_B, cols_B, 0, cols_B, true, stream_B);
 
-            // since B contains the checksum we have to copy it row by row, we divide the load into multiple streams from [1] to [numStreams-1] (diffent from the A stream[0])
-
-            cudaEvent_t b_memcpyEvent;
-            cudaEventCreate(&b_memcpyEvent);
-            cp_matrix_to_CUDA(B, dB, ROWS_B, cols_B, 0, cols_B, true, &b_memcpyEvent, streams);
             // calculate row checksums for B
-
-            cudaStreamWaitEvent(streams[1], b_memcpyEvent);
-            cudaEventDestroy(b_memcpyEvent);
-
             gridDim = dim3(1, ROWS_B);
             blockDim = dim3(tileDim.x, 1);
             sharedMemSize = linearDimToBytes(tileDim.x);
-            kernels::compute_checksums<<<gridDim, blockDim, sharedMemSize, streams[1]>>>(dB, ROWS_B, cols_B, ReductionDirection::ALONG_ROW);
+            kernels::compute_checksums<<<gridDim, blockDim, sharedMemSize, stream_B>>>(dB, ROWS_B, cols_B, ReductionDirection::ALONG_ROW);
 
             cudaDeviceSynchronize();
             CUDA_CHECK
@@ -145,14 +138,8 @@ namespace cuda
         // print dA and dB (with checksums)
         if (globals::debugPrint)
         {
-            float* Aec = matrix::alloc(rows_A + 1, cols_A, false);
-            float* Bec = matrix::alloc(ROWS_B, cols_B + 1, false);
-            cudaMemcpy(Aec, dA, size_A_ec, cudaMemcpyDeviceToHost);
-            cudaMemcpy(Bec, dB, size_B_ec, cudaMemcpyDeviceToHost);
-            matrix::print(Aec, rows_A + 1, cols_A, "A (w/ column checksum)", HIGHLIGHT_LAST_ROW);
-            matrix::print(Bec, ROWS_B, cols_B + 1, "B (w/ row checksum)", HIGHLIGHT_LAST_COL);
-            free(Aec);
-            free(Bec);
+            print_CUDA_matrix(dA, rows_A + 1, cols_A, "A (w/ column checksum)", HIGHLIGHT_LAST_ROW, NULL, NULL, 0);
+            print_CUDA_matrix(dB, ROWS_B, cols_B + 1, "B (w/ row checksum)", HIGHLIGHT_LAST_COL, NULL, NULL, 0);
         }
 
         // compute the actual matrix multiplication as usual
@@ -182,12 +169,7 @@ namespace cuda
 
         // print dC (with mul checksums)
         if (globals::debugPrint)
-        {
-            float* Cec = matrix::alloc(ROWS_C + 1, COLS_C + 1, false);
-            cudaMemcpy(Cec, dC, size_C_ec, cudaMemcpyDeviceToHost);
-            matrix::print(Cec, ROWS_C + 1, COLS_C + 1, "C (w/ mul checksums)", HIGHLIGHT_LAST_ROW_AND_COL, error_xs, error_ys, errors_count);
-            free(Cec);
-        }
+            print_CUDA_matrix(dC, ROWS_C + 1, COLS_C + 1, "C (w/ column checksum)", HIGHLIGHT_LAST_ROW_AND_COL, NULL, NULL, 0);
 
         // compute control checksums after mul
         {
@@ -214,19 +196,9 @@ namespace cuda
         // print control checksums
         if (globals::debugPrint)
         {
-            float *h_rc_control, *h_cc_control;
-            cudaMallocHost(&h_rc_control, (ROWS_C + 1) * sizeof(float));
-            cudaMallocHost(&h_cc_control, (COLS_C + 1) * sizeof(float));
-            cudaMemcpyAsync(h_rc_control, d_rc_control, (ROWS_C + 1) * sizeof(float), cudaMemcpyDeviceToHost, streams[0]);
-            cudaMemcpyAsync(h_cc_control, d_cc_control, (COLS_C + 1) * sizeof(float), cudaMemcpyDeviceToHost, streams[1]);
-            cudaDeviceSynchronize();
-            CUDA_CHECK
             std::vector<int> zeros(errors_count, 0);
-            matrix::print(h_rc_control, ROWS_C + 1, 1, "C control row checksum", HIGHLIGHT_LAST_COL, zeros.data(), error_ys, errors_count);
-            matrix::print(h_cc_control, 1, COLS_C + 1, "C control column checksum", HIGHLIGHT_LAST_ROW, error_xs, zeros.data(), errors_count);
-            cudaFreeHost(h_rc_control);
-            cudaFreeHost(h_cc_control);
-            CUDA_CHECK
+            print_CUDA_matrix(d_rc_control, ROWS_C + 1, 1, "C control row checksum", HIGHLIGHT_LAST_COL, zeros.data(), error_ys, errors_count);
+            print_CUDA_matrix(d_cc_control, 1, COLS_C + 1, "C control column checksum", HIGHLIGHT_LAST_ROW, error_xs, zeros.data(), errors_count);
         }
 
         // edc
@@ -258,13 +230,14 @@ namespace cuda
 
         // cleanup:
 
-        for (int i = 0; i < globals::numStreams; ++i)
-        {
-            cudaStreamSynchronize(streams[i]); // we have to synch the device but do the loop to destroy anyway, so we synch here the single streams
-            cudaStreamDestroy(streams[i]);
-        }
+        cudaStreamCreate(&stream_A);
+        cudaStreamCreate(&stream_B);
 
-        delete[] streams;
+        cudaStreamSynchronize(stream_A);
+        cudaStreamSynchronize(stream_B);
+
+        cudaStreamDestroy(stream_A);
+        cudaStreamDestroy(stream_B);
 
         cudaFree(dA);
         cudaFree(dB);
