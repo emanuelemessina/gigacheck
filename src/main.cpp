@@ -14,7 +14,7 @@ int main(int argc, char* argv[])
 
     cli
         .option({"h", "help", OPTION_INT_UNSET, "Help"})
-        .option({"v", "vanilla", OPTION_BOOL_UNSET, "Use vanilla matrix multiplication (no error checking)"})
+        .option({"n", "no-err-check", OPTION_BOOL_UNSET, "Use vanilla matrix multiplication (no error checking)"})
         .option({"p", "print", OPTION_BOOL_UNSET, "Print debug info (matrices, checksums, calculations), do not use with big matrices"})
         .option({"c", "check", OPTION_BOOL_UNSET, "Check the GPU product correctness with the CPU (for debugging, do not use with big matrices)"})
         .option({"i", "ints", OPTION_BOOL_UNSET, "Use int values instead of floats (for visualization, still uses floats as underlying type)"})
@@ -24,7 +24,8 @@ int main(int argc, char* argv[])
         .option({"ca", "cols-a", 100, "A cols"})
         .option({"cb", "cols-b", 100, "B cols"})
         .option({"e", "errors", 0, "Introduced errors count, must be < max(ra,cb)"})
-        .option({"ce", "collinear-errors", false, "If errors_count > 1, whether they should be arranged on the same axis (correctable)"});
+        .option({"ce", "collinear-errors", false, "If errors_count > 1, whether they should be arranged on the same axis (correctable)"})
+        .option({"v", "variant", 1, "Which variant to use: \n                               - 1 (default): 3 matrices (A, B, C), with no buffering\n                               - 2: 5 matrices (A, A', B, B', C) to pre-load the next A, B while multiplying\n                               - 3: 6 matrices (A, A', B, B', C, C') to save C while doing the next multiplication\n                               - 4: 6 matrices (A, A', B, B', C, C') to compute two multiplications in parallel (C = AB; C' = A'B')"});
 
     // cli parse
 
@@ -48,6 +49,7 @@ int main(int argc, char* argv[])
     auto print = cli.get("print").getValue<bool>();
     auto ints = cli.get("ints").getValue<bool>();
     auto tileside = cli.get("tileside").getValue<int>();
+    Strategy strategy = (Strategy)(cli.get("variant").getValue<int>() - 1);
     globals::debugPrint = print;
     globals::useIntValues = ints;
     globals::tileSide = tileside;
@@ -64,7 +66,7 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-    auto vanilla = cli.get("vanilla").getValue<bool>();
+    auto vanilla = cli.get("no-err-check").getValue<bool>();
     auto check = cli.get("check").getValue<bool>();
 
     auto errors = cli.get("errors").getValue<int>();
