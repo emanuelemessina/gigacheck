@@ -88,13 +88,13 @@ namespace cuda
         // create streams for parallel executions
         cudaStream_t stream_A;
         cudaStream_t stream_B;
-        // cudaStream_t stream_Abis;
-        // cudaStream_t stream_Bbis;
+        cudaStream_t stream_C;
+        cudaStream_t stream_Cbis;
 
         cudaStreamCreate(&stream_A);
         cudaStreamCreate(&stream_B);
-        // cudaStreamCreate(&stream_Abis);
-        // cudaStreamCreate(&stream_Bbis);
+        cudaStreamCreate(&stream_C);
+        cudaStreamCreate(&stream_Cbis);
 
         // define threads organization
         dim3 gridDim;
@@ -150,7 +150,7 @@ namespace cuda
             gridDim = dim3(CEIL_DIV(COLS_C + 1, tileDim.x), CEIL_DIV(ROWS_C + 1, tileDim.y));
             blockDim = tileDim;
             sharedMemSize = 2 * dim2ToBytes(tileDim);
-            kernels::tiled_matmul<<<gridDim, tileDim, sharedMemSize>>>(dA, dB, dC, rows_A + 1, cols_A, cols_B + 1);
+            kernels::tiled_matmul<<<gridDim, tileDim, sharedMemSize, stream_C>>>(dA, dB, dC, rows_A + 1, cols_A, cols_B + 1);
 
             cudaDeviceSynchronize();
             CUDA_CHECK
@@ -161,7 +161,7 @@ namespace cuda
             ScopedTimer timer("introduce error(s)", POST);
 
             for (int i = 0; i < errors_count; i++)
-                cudaMemcpyAsync(dC + error_ys[i] * (COLS_C + 1) + error_xs[i], &(error_values[i]), sizeof(float), cudaMemcpyHostToDevice, streams[i % globals::numStreams]);
+                cudaMemcpyAsync(dC + error_ys[i] * (COLS_C + 1) + error_xs[i], &(error_values[i]), sizeof(float), cudaMemcpyHostToDevice, stream_C);
 
             cudaDeviceSynchronize();
             CUDA_CHECK
@@ -180,14 +180,14 @@ namespace cuda
             gridDim = dim3(COLS_C + 1);
             blockDim = dim3(1, tileDim.y);
             sharedMemSize = linearDimToBytes(tileDim.y);
-            kernels::compute_checksums<<<gridDim, blockDim, sharedMemSize, streams[0]>>>(dC, ROWS_C, (COLS_C + 1), ReductionDirection::ALONG_COL, d_cc_control);
+            kernels::compute_checksums<<<gridDim, blockDim, sharedMemSize, stream_C>>>(dC, ROWS_C, (COLS_C + 1), ReductionDirection::ALONG_COL, d_cc_control);
 
             // compute row control checksum
 
             gridDim = dim3(1, ROWS_C + 1);
             blockDim = dim3(tileDim.x, 1);
             sharedMemSize = linearDimToBytes(tileDim.x);
-            kernels::compute_checksums<<<gridDim, blockDim, sharedMemSize, streams[1]>>>(dC, (ROWS_C + 1), COLS_C, ReductionDirection::ALONG_ROW, d_rc_control);
+            kernels::compute_checksums<<<gridDim, blockDim, sharedMemSize, stream_Cbis>>>(dC, (ROWS_C + 1), COLS_C, ReductionDirection::ALONG_ROW, d_rc_control);
 
             cudaDeviceSynchronize();
             CUDA_CHECK
@@ -208,7 +208,7 @@ namespace cuda
         {
             ScopedTimer timer("error detection (+ correction)", POST);
 
-            edc_res = errors_detect_correct(dC, ROWS_C, COLS_C, d_cc_control, d_rc_control, streams);
+            edc_res = errors_detect_correct(dC, ROWS_C, COLS_C, d_cc_control, d_rc_control, stream_C, stream_Cbis);
 
             // choice: don't send back the result if it's wrong
             // if (edc_res == UNCORRECTABLE_ERROR)
@@ -221,7 +221,7 @@ namespace cuda
             ScopedTimer timer("C to host", POST);
 
             for (int r = 0; r < ROWS_C; ++r) // copy row without last column
-                cudaMemcpyAsync(C + r * COLS_C, dC + r * (COLS_C + 1), COLS_C * sizeof(float), cudaMemcpyDeviceToHost, streams[r % globals::numStreams]);
+                cudaMemcpyAsync(C + r * COLS_C, dC + r * (COLS_C + 1), COLS_C * sizeof(float), cudaMemcpyDeviceToHost, stream_C);
 
             cudaDeviceSynchronize();
 
