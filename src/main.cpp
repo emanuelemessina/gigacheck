@@ -25,7 +25,7 @@ int main(int argc, char* argv[])
         .option({"cb", "cols-b", 100, "B cols"})
         .option({"e", "errors", 0, "Introduced errors count, must be < max(ra,cb)"})
         .option({"ce", "collinear-errors", false, "If errors_count > 1, whether they should be arranged on the same axis (correctable)"})
-        .option({"v", "variant", 1, "Which variant to use: \n                               - 1 (default): 3 matrices (A, B, C), with no buffering\n                               - 2: 5 matrices (A, A', B, B', C) to pre-load the next A, B while multiplying\n                               - 3: 6 matrices (A, A', B, B', C, C') to save C while doing the next multiplication\n                               - 4: 6 matrices (A, A', B, B', C, C') to compute two multiplications in parallel (C = AB; C' = A'B')"});
+        .option({"s", "strategy", 1, "Which strategy to use: \n                               - 1 (default): 3 matrices (A, B, C), with no buffering\n                               - 2: 5 matrices (A, A', B, B', C) to pre-load the next A, B while multiplying\n                               - 3: 6 matrices (A, A', B, B', C, C') to save C while doing the next multiplication\n                               - 4: 6 matrices (A, A', B, B', C, C') to compute two multiplications in parallel (C = AB; C' = A'B')"});
 
     // cli parse
 
@@ -49,7 +49,7 @@ int main(int argc, char* argv[])
     auto print = cli.get("print").getValue<bool>();
     auto ints = cli.get("ints").getValue<bool>();
     auto tileside = cli.get("tileside").getValue<int>();
-    Strategy strategy = (Strategy)(cli.get("variant").getValue<int>() - 1);
+    Strategy strategy = (Strategy)(cli.get("strategy").getValue<int>() - 1);
     globals::debugPrint = print;
     globals::useIntValues = ints;
     globals::tileSide = tileside;
