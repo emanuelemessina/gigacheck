@@ -14,7 +14,7 @@
 
 namespace programs
 {
-    int gigacheck(int ra, int ca, int cb, bool vanilla, bool check, int errors_count, bool collinear_errors)
+    int gigacheck(int ra, int ca, int cb, bool vanilla, bool check, int errors_count, bool collinear_errors, Strategy strategy)
     {
         cuda::Info info = cuda::getInfo();
 
@@ -87,7 +87,7 @@ namespace programs
                     }
                 }
 
-                cuda::EDCResult edc_res = cuda::matmul_ec(A, B, C, ra, ca, cb, error_values.size(), error_xs.data(), error_ys.data(), error_values.data());
+                cuda::EDCResult edc_res = cuda::matmul_ec(A, B, C, ra, ca, cb, error_values.size(), error_xs.data(), error_ys.data(), error_values.data(), strategy);
 
                 if (edc_res == cuda::UNCORRECTABLE_ERROR)
                 {

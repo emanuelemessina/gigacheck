@@ -2,11 +2,13 @@ By priority:
 
 - async copy while computing buffering schemes:
     - ✅ AB->C (default)
-    - AB->C // A'B' (double buffering)
+    - ✅ AB->C // A'B' (double buffering)
+    - ✅ AB->C // A'B'->C' (buffering also C)
     - AB->C // A'B'->C' (parallel computation)
 - profile everything
 - can further optimize block sizes, memory... ?
 - can remove some cudaDeviceSynchronize() ?
+- update matmul to various sizes?
 
 Paper:
 

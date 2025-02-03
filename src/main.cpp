@@ -76,7 +76,7 @@ int main(int argc, char* argv[])
     auto ca = cli.get("cols-a").getValue<int>();
     auto cb = cli.get("cols-b").getValue<int>();
 
-    result = programs::gigacheck(ra, ca, cb, vanilla, check, errors, collinear_errors);
+    result = programs::gigacheck(ra, ca, cb, vanilla, check, errors, collinear_errors, strategy);
 
     // end
 
