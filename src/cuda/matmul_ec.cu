@@ -43,6 +43,19 @@ void cp_matrix_to_CUDA(float* matrix, float* dst, int rows, int cols, int initia
     }
 }
 
+/**
+ * @brief Given a matrix in global memory, prints it (by copying it to host memory at first)
+ *
+ * @param[in]  mat              The matrix to print
+ * @param[in]  rows             Its number of rows
+ * @param[in]  cols             Its number of columns
+ * @param[in]  name             The name that should be printed
+ * @param[in]  flags            Flags related to highlighting (as per matrix::print)
+ * @param[in]  highlight_xs     Flags related to highlighting (as per matrix::print)
+ * @param[in]  highlight_ys     Flags related to highlighting (as per matrix::print)
+ * @param[in]  highlight_count  Flags related to highlighting (as per matrix::print)
+ *
+ */
 void print_CUDA_matrix(float* mat, int rows, int cols, const char* name, int flags, int* highlight_xs, int* highlight_ys, int highlight_count)
 {
     float* mat_host = matrix::alloc(rows, cols, false);
