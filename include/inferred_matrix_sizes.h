@@ -25,4 +25,8 @@
 #define SIZE_B_BYTES (SIZE_B * sizeof(float))
 #define SIZE_C_BYTES (SIZE_C * sizeof(float))
 
+#define MAX_BLOCK_ROWS_B max_block_cols_A
+#define MAX_BLOCK_ROWS_C max_block_rows_A
+#define MAX_BLOCK_COLS_C max_block_cols_B
+
 #endif
