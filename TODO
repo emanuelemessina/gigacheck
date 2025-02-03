@@ -6,6 +6,7 @@ By priority:
     - AB->C // A'B'->C' (parallel computation)
 - profile everything
 - can further optimize block sizes, memory... ?
+- can remove some cudaDeviceSynchronize() ?
 
 Paper:
 
