@@ -49,4 +49,17 @@ namespace matrix
      * @return True if the product is correct, false otherwise
      */
     bool check_product(float* A, float* B, float* C, int ra, int ca, int cb);
+
+    /**
+     * @brief Decideds if the matrices should be split in blocks to fit the global memory, and if so how many
+     *
+     * @param[in]   rows_A                #rows of matrix A
+     * @param[in]   cols_A                #cols of matrix A
+     * @param[in]   cols_B                #cols of matrix B
+     * @param[out]  num_split_common_dim  The number of blocks for dividing A's columns and B's rows into (= the dimensions multiplied together)
+     * @param[out]  num_split_other_dim   The number of blocks for dividing A's rows and B's columns into (= the "other" dimensions)
+     * @param[in]   strategy              Which strategy to use when matrices do not fit the GPU memory
+     *
+     */
+    void choose_division(int rows_A, int cols_A, int cols_B, int* num_split_common_dim, int* num_split_other_dim, Strategy strategy);
 }

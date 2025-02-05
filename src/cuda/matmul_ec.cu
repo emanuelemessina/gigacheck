@@ -5,7 +5,6 @@
 #include "kernels.cuh"
 #include "matrix.h"
 #include "timer.h"
-#include <math.h>
 
 #define SWAP(a, b)    \
     {                 \
@@ -98,47 +97,6 @@ void print_CUDA_matrix(float* mat, int rows, int cols, const char* name, int fla
     CUDA_CHECK
 }
 
-/**
- * @brief Decideds if the matrices should be split in blocks to fit the global memory, and if so how many
- *
- * @param[in]   rows_A                #rows of matrix A
- * @param[in]   cols_A                #cols of matrix A
- * @param[in]   cols_B                #cols of matrix B
- * @param[out]  num_split_common_dim  The number of blocks for dividing A's columns and B's rows into (= the dimensions multiplied together)
- * @param[out]  num_split_other_dim   The number of blocks for dividing A's rows and B's columns into (= the "other" dimensions)
- * @param[in]   strategy              Which strategy to use when matrices do not fit the GPU memory
- *
- */
-void choose_division(int rows_A, int cols_A, int cols_B, int* num_split_common_dim, int* num_split_other_dim, Strategy strategy)
-{
-    int factA = 1, factB = 1, factC = 1;
-
-    switch (strategy)
-    {
-        case bufferABC_forWriteback:
-        case bufferABC_for2muls:
-            factC = 2;
-
-        case bufferAB:
-            factA = factB = 2;
-    }
-
-    float required_mem = factA * (rows_A + 1) * cols_A;  // A with checksum
-    required_mem += factB * ROWS_B * (cols_B + 1);       // B with checksum
-    required_mem += factC * (ROWS_C + 1) * (COLS_C + 1); // C with checksum
-    required_mem += factC * (COLS_C + 1);                // Column checksum buffer for C
-    required_mem += factC * (ROWS_C + 1);                // Row checksum buffer for C
-    required_mem *= sizeof(float);
-
-    required_mem += 2 * EDC_MAX_ERRORS * sizeof(int); // Mismatches index buffer for error correction
-    required_mem += 4 * sizeof(int);                  // Mismatch_count_x/y, error_x/y
-
-    float exceeding_factor = required_mem / globals::maxGlobalMem;
-
-    *num_split_common_dim = ceil(sqrt(exceeding_factor));
-    *num_split_other_dim = ceil(exceeding_factor / (float)(*num_split_common_dim));
-}
-
 void copy_matrix_compute_checksum(float* h_mat, float* d_mat, int blockRow, int num_split_row, int blockCol, int num_split_col, int totRows, int totCols, int max_block_rows, int max_block_cols, cudaStream_t stream, char name)
 {
     // copy to device
@@ -178,13 +136,13 @@ void copy_matrix_compute_checksum(float* h_mat, float* d_mat, int blockRow, int 
 
 namespace cuda
 {
-    EDCResult matmul_ec(float* A, float* B, float* C, int rows_A, int cols_A, int cols_B, int errors_count, int* error_xs, int* error_ys, float* error_values, Strategy strategy)
+    EDCResult matmul_ec(float* A, float* B, float* C, int rows_A, int cols_A, int cols_B, int errors_count, int** error_xs, int** error_ys, float** error_values, Strategy strategy)
     {
         // How to split the matrices into blocks
         int num_split_common_dim;
         int num_split_other_dim;
 
-        choose_division(rows_A, cols_A, cols_B, &num_split_common_dim, &num_split_other_dim, strategy);
+        matrix::choose_division(rows_A, cols_A, cols_B, &num_split_common_dim, &num_split_other_dim, strategy);
 
         // Final sizes of matrices (excluding the checksums)
         int max_block_rows_A = CEIL_DIV(rows_A, num_split_other_dim);
@@ -382,12 +340,14 @@ namespace cuda
                         CUDA_CHECK
                     }
 
+                    int error_id = block + C_col * num_split_common_dim + C_row * num_split_common_dim * num_split_other_dim;
+
                     // introduce errors in dC_cur
                     {
                         ScopedTimer timer("introduce error(s)", POST);
 
                         for (int i = 0; i < errors_count; i++)
-                            cudaMemcpyAsync(dC_cur + error_ys[i] * (COLS_C + 1) + error_xs[i], &(error_values[i]), sizeof(float), cudaMemcpyHostToDevice, *stream_C_cur);
+                            cudaMemcpyAsync(dC_cur + error_ys[error_id][i] * (MAX_BLOCK_COLS_C + 1) + error_xs[error_id][i], &(error_values[error_id][i]), sizeof(float), cudaMemcpyHostToDevice, *stream_C_cur);
 
                         cudaDeviceSynchronize();
                         CUDA_CHECK
@@ -423,8 +383,8 @@ namespace cuda
                     if (globals::debugPrint)
                     {
                         std::vector<int> zeros(errors_count, 0);
-                        print_CUDA_matrix(d_rc_control1, MAX_BLOCK_ROWS_C + 1, 1, "C control row checksum", HIGHLIGHT_LAST_COL, zeros.data(), error_ys, errors_count);
-                        print_CUDA_matrix(d_cc_control1, 1, MAX_BLOCK_COLS_C + 1, "C control column checksum", HIGHLIGHT_LAST_ROW, error_xs, zeros.data(), errors_count);
+                        print_CUDA_matrix(d_rc_control1, MAX_BLOCK_ROWS_C + 1, 1, "C control row checksum", HIGHLIGHT_LAST_COL, zeros.data(), error_ys[error_id], errors_count);
+                        print_CUDA_matrix(d_cc_control1, 1, MAX_BLOCK_COLS_C + 1, "C control column checksum", HIGHLIGHT_LAST_ROW, error_xs[error_id], zeros.data(), errors_count);
                     }
 
                     // edc
