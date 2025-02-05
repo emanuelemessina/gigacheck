@@ -1,24 +1,16 @@
-\documentclass{article}
+\documentclass[12pt]{article}
 
-\title{Your Title Here}
-\author{Your Name}
-\date{\today}
+\usepackage{graphicx}
+\usepackage[a4paper,width=150mm,top=25mm,bottom=25mm, bindingoffset=10mm]{geometry}
 
 \begin{document}
 
-\maketitle
+\include{titlepage}
 
 \begin{abstract}
-Your abstract here.
+	Your abstract here.
 \end{abstract}
 
-\section{Introduction}
-Your introduction here.
-
-\section{Main Content}
-Your main content here.
-
-\section{Conclusion}
-Your conclusion here.
+\input{sections/1.Problem_statement}
 
 \end{document}
