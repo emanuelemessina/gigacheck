@@ -34,11 +34,11 @@ namespace cuda
 
         // depth-first issuing to avoid consecutive kernel scheduling blocking kernel0 signal to copy queue
 
-        kernels::find_checksum_mismatches<<<CEIL_DIV(cols + 1, tileDim.y), tileDim.y, 0, streams[0]>>>(d_ec_matrix, rows, cols, d_cc_control, ChecksumCompareMode::COL, &d_mismatch_info[MISMATCH_COUNT_X], d_error_xs, &d_mismatch_info[ERROR_X]);
+        kernels::find_checksum_mismatches<<<CEIL_DIV(cols + 1, tileDim.y), tileDim.y, 0, streams[0]>>>(d_ec_matrix, rows, cols, d_cc_control, ChecksumsToCompare::COL, &d_mismatch_info[MISMATCH_COUNT_X], d_error_xs, &d_mismatch_info[ERROR_X]);
 
         cudaMemcpyAsync(mismatch_info, d_mismatch_info, 2 * sizeof(float), cudaMemcpyDeviceToHost, streams[0]);
 
-        kernels::find_checksum_mismatches<<<CEIL_DIV(rows + 1, tileDim.x), tileDim.x, 0, streams[1]>>>(d_ec_matrix, rows, cols, d_rc_control, ChecksumCompareMode::ROW, &d_mismatch_info[MISMATCH_COUNT_Y], d_error_ys, &d_mismatch_info[ERROR_Y]);
+        kernels::find_checksum_mismatches<<<CEIL_DIV(rows + 1, tileDim.x), tileDim.x, 0, streams[1]>>>(d_ec_matrix, rows, cols, d_rc_control, ChecksumsToCompare::ROW, &d_mismatch_info[MISMATCH_COUNT_Y], d_error_ys, &d_mismatch_info[ERROR_Y]);
 
         cudaMemcpyAsync(mismatch_info + 2, d_mismatch_info + 2, 2 * sizeof(float), cudaMemcpyDeviceToHost, streams[1]);
 

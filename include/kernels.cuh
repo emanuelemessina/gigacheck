@@ -42,7 +42,7 @@ enum ReductionDirection
     ALONG_ROW
 };
 
-enum ChecksumCompareMode
+enum ChecksumsToCompare
 {
     COL = ReductionDirection::ALONG_COL,
     ROW = ReductionDirection::ALONG_ROW
@@ -89,10 +89,10 @@ namespace kernels
      * @param rows Number of rows in the matrix (checksum excluded).
      * @param cols Number of columns in the matrix (checksum excluded).
      * @param control_checksum Pointer to the control checksum.
-     * @param comparison_mode Which checksum to compare (row or column).
+     * @param checksums_to_compare Which checksum to compare (row or column).
      * @param[out] mismatch_count Will contain the number of mismatches encountered.
      * @param[out] mismatch_indexes Will contain the indexes of the mismatches.
      * @param[out] error_flag Will be set to 1 if there is an internal kernel error (eg. encountered more mismatches than allowed).
      */
-    __global__ void find_checksum_mismatches(const float* ec_matrix, int rows, int cols, float* control_checksum, ChecksumCompareMode comparison_mode, int* mismatch_count, int* mismatch_indexes, int* error_flag);
+    __global__ void find_checksum_mismatches(const float* ec_matrix, int rows, int cols, float* control_checksum, ChecksumsToCompare checksums_to_compare, int* mismatch_count, int* mismatch_indexes, int* error_flag);
 }
