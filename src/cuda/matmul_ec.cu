@@ -332,6 +332,28 @@ namespace cuda
                             copy_matrix_compute_checksum(A, dA_cur, C_row, num_split_other_dim, block, num_split_common_dim, rows_A, cols_A, max_block_rows_A, max_block_cols_A, *stream_A_cur, 'A');
                             copy_matrix_compute_checksum(B, dB_cur, block, num_split_common_dim, C_col, num_split_other_dim, ROWS_B, cols_B, MAX_BLOCK_ROWS_B, max_block_cols_B, *stream_B_cur, 'B');
                         }
+                        else
+                        {
+                            // if strategy pre-loads A and B, and this is not the last iteration, pre-load the next A, B
+                            if (block != (num_split_common_dim - 1) || C_row != (num_split_other_dim - 1) || C_col != (num_split_other_dim - 1))
+                            {
+                                int next_block = block + 1;
+                                int next_C_col = C_col;
+                                int next_C_row = C_row;
+                                if (next_block == num_split_common_dim)
+                                {
+                                    next_block = 0;
+                                    next_C_col = C_col + 1;
+                                    if (next_C_col == num_split_other_dim)
+                                    {
+                                        next_C_col = 0;
+                                        next_C_row = C_row + 1;
+                                    }
+                                }
+                                copy_matrix_compute_checksum(A, dA_alt, next_C_row, num_split_other_dim, next_block, num_split_common_dim, rows_A, cols_A, max_block_rows_A, max_block_cols_A, *stream_A_alt, 'A');
+                                copy_matrix_compute_checksum(B, dB_alt, next_block, num_split_common_dim, next_C_col, num_split_other_dim, ROWS_B, cols_B, MAX_BLOCK_ROWS_B, max_block_cols_B, *stream_B_alt, 'B');
+                            }
+                        }
 
                         cudaDeviceSynchronize();
                         CUDA_CHECK
@@ -426,29 +448,6 @@ namespace cuda
 
                             case NO_ERROR:
                                 break;
-                        }
-                    }
-
-                    if (strategy != noBuffer)
-                    {
-                        // if strategy pre-loads A and B, and this is not the last iteration, pre-load the next A, B
-                        if (block != (num_split_common_dim - 1) || C_row != (num_split_other_dim - 1) || C_col != (num_split_other_dim - 1))
-                        {
-                            int next_block = block + 1;
-                            int next_C_col = C_col;
-                            int next_C_row = C_row;
-                            if (next_block == num_split_common_dim)
-                            {
-                                next_block = 0;
-                                next_C_col = C_col + 1;
-                                if (next_C_col == num_split_other_dim)
-                                {
-                                    next_C_col = 0;
-                                    next_C_row = C_row + 1;
-                                }
-                            }
-                            copy_matrix_compute_checksum(A, dA_alt, next_C_row, num_split_other_dim, next_block, num_split_common_dim, rows_A, cols_A, max_block_rows_A, max_block_cols_A, *stream_A_alt, 'A');
-                            copy_matrix_compute_checksum(B, dB_alt, next_block, num_split_common_dim, next_C_col, num_split_other_dim, ROWS_B, cols_B, MAX_BLOCK_ROWS_B, max_block_cols_B, *stream_B_alt, 'B');
                         }
                     }
 
