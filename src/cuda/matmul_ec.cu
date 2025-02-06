@@ -193,7 +193,12 @@ namespace cuda
             ScopedTimer timer("introduce error(s)", POST);
 
             for (int i = 0; i < errors_count; i++)
-                cudaMemcpyAsync(C + error_ys[i] * (MAX_BLOCK_COLS_C + 1) + error_xs[i], &(error_values[i]), sizeof(float), cudaMemcpyHostToDevice, stream);
+            {
+                float tmp;
+                cudaMemcpy(&tmp, C + error_ys[i] * (MAX_BLOCK_COLS_C + 1) + error_xs[i], sizeof(float), cudaMemcpyDeviceToHost);
+                tmp += error_values[i];
+                cudaMemcpy(C + error_ys[i] * (MAX_BLOCK_COLS_C + 1) + error_xs[i], &tmp, sizeof(float), cudaMemcpyHostToDevice);
+            }
             cudaEventRecord(C_err_added, stream);
 
             CUDA_CHECK
