@@ -301,7 +301,8 @@ namespace cuda
                 cudaMalloc(&d_rc_control2, (ROWS_C + 1) * sizeof(float));
 
             case bufferAB:
-                cudaMalloc(&dA2, size_A_ec);
+                if (strategy != bufferABC_for2muls)
+                    cudaMalloc(&dA2, size_A_ec);
                 cudaMalloc(&dB2, size_B_ec);
 
             case noBuffer:
@@ -367,6 +368,8 @@ namespace cuda
         // result
         bool result_correct = true;
         bool result_corrected = false;
+        bool result_correct_alt = true;
+        bool result_corrected_alt = false;
 
         //
         int offset;
@@ -377,7 +380,7 @@ namespace cuda
         int block_rows_C_alt;
         int block_cols_C_alt;
 
-        if (strategy != noBuffer)
+        if (strategy != noBuffer && strategy != bufferABC_for2muls)
         {
             copy_matrix_compute_checksum(A, dA_cur, 0, num_split_other_dim, 0, num_split_common_dim, rows_A, cols_A, max_block_rows_A, max_block_cols_A, *stream_A_cur, 'A');
             copy_matrix_compute_checksum(B, dB_cur, 0, num_split_common_dim, 0, num_split_other_dim, ROWS_B, cols_B, MAX_BLOCK_ROWS_B, max_block_cols_B, *stream_B_cur, 'B');
@@ -385,9 +388,11 @@ namespace cuda
 
         for (int C_row = 0; C_row < num_split_other_dim && result_correct; C_row++)
         {
-            for (int C_col = 0; C_col < num_split_other_dim && result_correct; C_col++)
+            for (int C_col = 0; C_col < num_split_other_dim && result_correct; C_col += (strategy == bufferABC_for2muls ? 2 : 1))
             {
                 cudaMemsetAsync(dC_cur, 0, size_C_ec, *stream_C_cur);
+                if (strategy == bufferABC_for2muls && C_col + 1 < num_split_other_dim)
+                    cudaMemsetAsync(dC_alt, 0, size_C_ec, *stream_C_alt);
 
                 for (int block = 0; block < num_split_common_dim && result_correct; block++)
                 {
@@ -407,6 +412,13 @@ namespace cuda
                         {
                             copy_matrix_compute_checksum(A, dA_cur, C_row, num_split_other_dim, block, num_split_common_dim, rows_A, cols_A, max_block_rows_A, max_block_cols_A, *stream_A_cur, 'A');
                             copy_matrix_compute_checksum(B, dB_cur, block, num_split_common_dim, C_col, num_split_other_dim, ROWS_B, cols_B, MAX_BLOCK_ROWS_B, max_block_cols_B, *stream_B_cur, 'B');
+                        }
+                        else if (strategy == bufferABC_for2muls)
+                        {
+                            copy_matrix_compute_checksum(A, dA_cur, C_row, num_split_other_dim, block, num_split_common_dim, rows_A, cols_A, max_block_rows_A, max_block_cols_A, *stream_A_cur, 'A');
+                            copy_matrix_compute_checksum(B, dB_cur, block, num_split_common_dim, C_col, num_split_other_dim, ROWS_B, cols_B, MAX_BLOCK_ROWS_B, max_block_cols_B, *stream_B_cur, 'B');
+                            if (C_col + 1 < num_split_other_dim)
+                                copy_matrix_compute_checksum(B, dB_alt, block, num_split_common_dim, C_col + 1, num_split_other_dim, ROWS_B, cols_B, MAX_BLOCK_ROWS_B, max_block_cols_B, *stream_B_alt, 'B');
                         }
                         else
                         {
@@ -438,11 +450,15 @@ namespace cuda
                     int error_id = block + C_col * num_split_common_dim + C_row * num_split_common_dim * num_split_other_dim;
                     C_mult_check_correct(dA_cur, dB_cur, dC_cur, rows_A, cols_B, &block_rows_C_cur, &block_cols_C_cur, C_row, C_col, block, max_block_rows_A, max_block_cols_A, max_block_cols_B, *stream_C_cur, *stream_Cbis_cur, num_split_common_dim, num_split_other_dim, errors_count, error_xs[error_id], error_ys[error_id], error_values[error_id], &result_correct, &result_corrected);
 
+                    if (strategy == bufferABC_for2muls && C_col + 1 < num_split_other_dim)
+                    {
+                        error_id = block + (C_col + 1) * num_split_common_dim + C_row * num_split_common_dim * num_split_other_dim;
+                        C_mult_check_correct(dA_cur, dB_alt, dC_alt, rows_A, cols_B, &block_rows_C_alt, &block_cols_C_alt, C_row, C_col + 1, block, max_block_rows_A, max_block_cols_A, max_block_cols_B, *stream_C_alt, *stream_Cbis_alt, num_split_common_dim, num_split_other_dim, errors_count, error_xs[error_id], error_ys[error_id], error_values[error_id], &result_correct_alt, &result_corrected_alt);
+                    }
+
                     switch (strategy)
                     {
                         case bufferABC_forWriteback:
-
-                        case bufferABC_for2muls:
                         case bufferAB:
                             SWAP(dA_cur, dA_alt)
                             SWAP(dB_cur, dB_alt)
@@ -456,6 +472,7 @@ namespace cuda
                     ScopedTimer timer("C to host", POST);
 
                     offset = C_row * MAX_BLOCK_ROWS_C * COLS_C + C_col * MAX_BLOCK_COLS_C;
+                    int offset2 = C_row * MAX_BLOCK_ROWS_C * COLS_C + (C_col + 1) * MAX_BLOCK_COLS_C;
 
                     switch (strategy)
                     {
@@ -470,7 +487,8 @@ namespace cuda
                             break;
 
                         case bufferABC_for2muls:
-                            break;
+                            if (C_col + 1 < num_split_other_dim)
+                                cp_matrix_from_CUDA(dC_alt, C, block_rows_C_alt, block_cols_C_alt, MAX_BLOCK_COLS_C, offset2, COLS_C, *stream_C_alt);
 
                         case bufferAB:
                         case noBuffer:
@@ -511,7 +529,8 @@ namespace cuda
                 cudaFree(dC2);
 
             case bufferAB:
-                cudaFree(dA2);
+                if (strategy != bufferABC_for2muls)
+                    cudaFree(dA2);
                 cudaFree(dB2);
 
             case noBuffer:
