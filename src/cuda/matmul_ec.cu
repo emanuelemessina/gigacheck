@@ -158,6 +158,107 @@ void C_compute_checksum(float* C, ReductionDirection direction, int max_block_co
 
 namespace cuda
 {
+    void C_mult_check_correct(float* A, float* B, float* C, int rows_A, int cols_B, int* block_rows_C_cur, int* block_cols_C_cur, int C_row, int C_col, int block, int max_block_rows_A, int max_block_cols_A, int max_block_cols_B, cudaStream_t stream, cudaStream_t streamBis, int num_split_common_dim, int num_split_other_dim, int errors_count, int* error_xs, int* error_ys, float* error_values, bool* result_correct, bool* result_corrected)
+    {
+        float *d_cc_control, *d_rc_control;
+        cudaMalloc(&d_cc_control, (MAX_BLOCK_COLS_C + 1) * sizeof(float));
+        cudaMalloc(&d_rc_control, (MAX_BLOCK_ROWS_C + 1) * sizeof(float));
+
+        // rows, cols for dC_cur
+        (*block_rows_C_cur) = CEIL_DIV(ROWS_C, num_split_other_dim);
+        (*block_cols_C_cur) = CEIL_DIV(COLS_C, num_split_other_dim);
+
+        if (C_row == num_split_other_dim - 1)
+            (*block_rows_C_cur) = ROWS_C - (*block_rows_C_cur) * C_row;
+        if (C_col == num_split_other_dim - 1)
+            (*block_cols_C_cur) = COLS_C - (*block_cols_C_cur) * C_col;
+
+        // compute the actual matrix multiplication as usual
+
+        {
+            ScopedTimer timer("tiled matmul", POST);
+
+            dim3 gridDim = dim3(CEIL_DIV(MAX_BLOCK_COLS_C + 1, tileDim.x), CEIL_DIV(MAX_BLOCK_ROWS_C + 1, tileDim.y));
+            int sharedMemSize = 2 * dim2ToBytes(tileDim);
+            kernels::tiled_matmul<<<gridDim, tileDim, sharedMemSize, stream>>>(A, B, C, max_block_rows_A + 1, max_block_cols_A, max_block_cols_B + 1);
+
+            cudaDeviceSynchronize();
+            CUDA_CHECK
+        }
+
+        // introduce errors in dC_cur
+        {
+            ScopedTimer timer("introduce error(s)", POST);
+
+            for (int i = 0; i < errors_count; i++)
+                cudaMemcpyAsync(C + error_ys[i] * (MAX_BLOCK_COLS_C + 1) + error_xs[i], &(error_values[i]), sizeof(float), cudaMemcpyHostToDevice, stream);
+
+            cudaDeviceSynchronize();
+            CUDA_CHECK
+        }
+
+        // print dC_cur (with mul checksums)
+        if (globals::debugPrint)
+            print_CUDA_matrix(C, MAX_BLOCK_ROWS_C + 1, MAX_BLOCK_COLS_C + 1, "C (w/ column checksum)", HIGHLIGHT_LAST_ROW_AND_COL, error_xs, error_ys, errors_count);
+
+        // compute control checksums after mul
+        {
+            ScopedTimer timer("compute control checksums", POST);
+
+            // compute col control checksum
+            C_compute_checksum(C, ReductionDirection::ALONG_COL, max_block_cols_B, max_block_rows_A, stream, d_cc_control);
+
+            // compute row control checksum
+            C_compute_checksum(C, ReductionDirection::ALONG_ROW, max_block_cols_B, max_block_rows_A, streamBis, d_rc_control);
+
+            cudaDeviceSynchronize();
+            CUDA_CHECK
+        }
+
+        // print control checksums
+        if (globals::debugPrint)
+        {
+            std::vector<int> zeros(errors_count, 0);
+            print_CUDA_matrix(d_rc_control, MAX_BLOCK_ROWS_C + 1, 1, "C control row checksum", HIGHLIGHT_LAST_COL, zeros.data(), error_ys, errors_count);
+            print_CUDA_matrix(d_cc_control, 1, MAX_BLOCK_COLS_C + 1, "C control column checksum", HIGHLIGHT_LAST_ROW, error_xs, zeros.data(), errors_count);
+        }
+
+        // edc
+
+        {
+            ScopedTimer timer("error detection (+ correction)", POST);
+
+            EDCResult edc_res = errors_detect_correct(C, MAX_BLOCK_ROWS_C, MAX_BLOCK_COLS_C, d_cc_control, d_rc_control, stream, streamBis);
+
+            // choice: don't send back the result if it's wrong
+            // NOTE: now the result may be partial, since an error will stop the rest
+            switch (edc_res)
+            {
+                case UNCORRECTABLE_ERROR:
+                    *result_correct = false;
+                    break;
+
+                case CORRECTED_ERROR:
+                    *result_corrected = true;
+                    break;
+
+                case NO_ERROR:
+                    break;
+
+                case ERROR_ONLY_IN_LAST_COL_CHECKSUMS:
+                    C_compute_checksum(C, ReductionDirection::ALONG_ROW, max_block_cols_B, max_block_rows_A, stream, NULL);
+                    break;
+
+                case ERROR_ONLY_IN_LAST_ROW_CHECKSUMS:
+                    C_compute_checksum(C, ReductionDirection::ALONG_COL, max_block_cols_B, max_block_rows_A, stream, NULL);
+                    break;
+            }
+        }
+
+        cudaFree(d_cc_control);
+        cudaFree(d_rc_control);
+    }
+
     EDCResult matmul_ec(float* A, float* B, float* C, int rows_A, int cols_A, int cols_B, int errors_count, int** error_xs, int** error_ys, float** error_values, Strategy strategy)
     {
         // How to split the matrices into blocks
@@ -276,10 +377,6 @@ namespace cuda
         int block_rows_C_alt;
         int block_cols_C_alt;
 
-        // define threads organization
-        dim3 gridDim;
-        int sharedMemSize;
-
         if (strategy != noBuffer)
         {
             copy_matrix_compute_checksum(A, dA_cur, 0, num_split_other_dim, 0, num_split_common_dim, rows_A, cols_A, max_block_rows_A, max_block_cols_A, *stream_A_cur, 'A');
@@ -338,100 +435,8 @@ namespace cuda
                         CUDA_CHECK
                     }
 
-                    // rows, cols for dC_cur
-                    block_rows_C_cur = CEIL_DIV(ROWS_C, num_split_other_dim);
-                    block_cols_C_cur = CEIL_DIV(COLS_C, num_split_other_dim);
-
-                    if (C_row == num_split_other_dim - 1)
-                        block_rows_C_cur = ROWS_C - block_rows_C_cur * C_row;
-                    if (C_col == num_split_other_dim - 1)
-                        block_cols_C_cur = COLS_C - block_cols_C_cur * C_col;
-
-                    // compute the actual matrix multiplication as usual
-
-                    {
-                        ScopedTimer timer("tiled matmul", POST);
-
-                        gridDim = dim3(CEIL_DIV(MAX_BLOCK_COLS_C + 1, tileDim.x), CEIL_DIV(MAX_BLOCK_ROWS_C + 1, tileDim.y));
-                        sharedMemSize = 2 * dim2ToBytes(tileDim);
-                        kernels::tiled_matmul<<<gridDim, tileDim, sharedMemSize, *stream_C_cur>>>(dA_cur, dB_cur, dC_cur, max_block_rows_A + 1, max_block_cols_A, max_block_cols_B + 1);
-
-                        cudaDeviceSynchronize();
-                        CUDA_CHECK
-                    }
-
                     int error_id = block + C_col * num_split_common_dim + C_row * num_split_common_dim * num_split_other_dim;
-
-                    // introduce errors in dC_cur
-                    {
-                        ScopedTimer timer("introduce error(s)", POST);
-
-                        for (int i = 0; i < errors_count; i++)
-                            cudaMemcpyAsync(dC_cur + error_ys[error_id][i] * (MAX_BLOCK_COLS_C + 1) + error_xs[error_id][i], &(error_values[error_id][i]), sizeof(float), cudaMemcpyHostToDevice, *stream_C_cur);
-
-                        cudaDeviceSynchronize();
-                        CUDA_CHECK
-                    }
-
-                    // print dC_cur (with mul checksums)
-                    if (globals::debugPrint)
-                        print_CUDA_matrix(dC_cur, MAX_BLOCK_ROWS_C + 1, MAX_BLOCK_COLS_C + 1, "C (w/ column checksum)", HIGHLIGHT_LAST_ROW_AND_COL, error_xs[error_id], error_ys[error_id], errors_count);
-
-                    // compute control checksums after mul
-                    {
-                        ScopedTimer timer("compute control checksums", POST);
-
-                        // compute col control checksum
-                        C_compute_checksum(dC_cur, ReductionDirection::ALONG_COL, max_block_cols_B, max_block_rows_A, *stream_C_cur, d_cc_control1);
-
-                        // compute row control checksum
-                        C_compute_checksum(dC_cur, ReductionDirection::ALONG_ROW, max_block_cols_B, max_block_rows_A, *stream_Cbis_cur, d_rc_control1);
-
-                        cudaDeviceSynchronize();
-                        CUDA_CHECK
-                    }
-
-                    // print control checksums
-                    if (globals::debugPrint)
-                    {
-                        std::vector<int> zeros(errors_count, 0);
-                        print_CUDA_matrix(d_rc_control1, MAX_BLOCK_ROWS_C + 1, 1, "C control row checksum", HIGHLIGHT_LAST_COL, zeros.data(), error_ys[error_id], errors_count);
-                        print_CUDA_matrix(d_cc_control1, 1, MAX_BLOCK_COLS_C + 1, "C control column checksum", HIGHLIGHT_LAST_ROW, error_xs[error_id], zeros.data(), errors_count);
-                    }
-
-                    // edc
-
-                    {
-                        ScopedTimer timer("error detection (+ correction)", POST);
-
-                        EDCResult edc_res = errors_detect_correct(dC_cur, MAX_BLOCK_ROWS_C, MAX_BLOCK_COLS_C, d_cc_control1, d_rc_control1, *stream_C_cur, *stream_Cbis_cur);
-
-                        // choice: don't send back the result if it's wrong
-                        // NOTE: now the result may be partial, since an error will stop the rest
-                        switch (edc_res)
-                        {
-                            case UNCORRECTABLE_ERROR:
-                                result_correct = false;
-                                break;
-
-                            case CORRECTED_ERROR:
-                                result_corrected = true;
-                                break;
-
-                            case NO_ERROR:
-                                break;
-
-                            case ERROR_ONLY_IN_LAST_COL_CHECKSUMS:
-                                result_correct = true;
-                                C_compute_checksum(dC_cur, ReductionDirection::ALONG_ROW, max_block_cols_B, max_block_rows_A, *stream_C_cur, NULL);
-                                break;
-
-                            case ERROR_ONLY_IN_LAST_ROW_CHECKSUMS:
-                                result_correct = true;
-                                C_compute_checksum(dC_cur, ReductionDirection::ALONG_COL, max_block_cols_B, max_block_rows_A, *stream_C_cur, NULL);
-                                break;
-                        }
-                    }
+                    C_mult_check_correct(dA_cur, dB_cur, dC_cur, rows_A, cols_B, &block_rows_C_cur, &block_cols_C_cur, C_row, C_col, block, max_block_rows_A, max_block_cols_A, max_block_cols_B, *stream_C_cur, *stream_Cbis_cur, num_split_common_dim, num_split_other_dim, errors_count, error_xs[error_id], error_ys[error_id], error_values[error_id], &result_correct, &result_corrected);
 
                     switch (strategy)
                     {
@@ -505,9 +510,6 @@ namespace cuda
             case bufferABC_for2muls:
                 cudaFree(dC2);
 
-                cudaFree(d_cc_control2);
-                cudaFree(d_rc_control2);
-
             case bufferAB:
                 cudaFree(dA2);
                 cudaFree(dB2);
@@ -516,9 +518,6 @@ namespace cuda
                 cudaFree(dA1);
                 cudaFree(dB1);
                 cudaFree(dC1);
-
-                cudaFree(d_cc_control1);
-                cudaFree(d_rc_control1);
         }
 
         cudaHostUnregister(A);
