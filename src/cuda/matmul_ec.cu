@@ -134,6 +134,28 @@ void copy_matrix_compute_checksum(float* h_mat, float* d_mat, int blockRow, int 
             0);
 }
 
+void C_compute_checksum(float* C, ReductionDirection direction, int max_block_cols_B, int max_block_rows_A, cudaStream_t stream, float* result_array)
+{
+    // compute col control checksum
+
+    if (direction == ReductionDirection::ALONG_COL)
+    {
+        dim3 gridDim = dim3(MAX_BLOCK_COLS_C + 1);
+        dim3 blockDim = dim3(1, tileDim.y);
+        int sharedMemSize = linearDimToBytes(tileDim.y);
+        kernels::compute_checksums<<<gridDim, blockDim, sharedMemSize, stream>>>(C, MAX_BLOCK_ROWS_C, (MAX_BLOCK_COLS_C + 1), ReductionDirection::ALONG_COL, result_array);
+    }
+
+    // compute row control checksum
+    else
+    {
+        dim3 gridDim = dim3(1, MAX_BLOCK_ROWS_C + 1);
+        dim3 blockDim = dim3(tileDim.x, 1);
+        int sharedMemSize = linearDimToBytes(tileDim.x);
+        kernels::compute_checksums<<<gridDim, blockDim, sharedMemSize, stream>>>(C, (MAX_BLOCK_ROWS_C + 1), MAX_BLOCK_COLS_C, ReductionDirection::ALONG_ROW, result_array);
+    }
+}
+
 namespace cuda
 {
     EDCResult matmul_ec(float* A, float* B, float* C, int rows_A, int cols_A, int cols_B, int errors_count, int** error_xs, int** error_ys, float** error_values, Strategy strategy)
@@ -256,7 +278,6 @@ namespace cuda
 
         // define threads organization
         dim3 gridDim;
-        dim3 blockDim;
         int sharedMemSize;
 
         if (strategy != noBuffer)
@@ -332,7 +353,6 @@ namespace cuda
                         ScopedTimer timer("tiled matmul", POST);
 
                         gridDim = dim3(CEIL_DIV(MAX_BLOCK_COLS_C + 1, tileDim.x), CEIL_DIV(MAX_BLOCK_ROWS_C + 1, tileDim.y));
-                        blockDim = tileDim;
                         sharedMemSize = 2 * dim2ToBytes(tileDim);
                         kernels::tiled_matmul<<<gridDim, tileDim, sharedMemSize, *stream_C_cur>>>(dA_cur, dB_cur, dC_cur, max_block_rows_A + 1, max_block_cols_A, max_block_cols_B + 1);
 
@@ -355,25 +375,17 @@ namespace cuda
 
                     // print dC_cur (with mul checksums)
                     if (globals::debugPrint)
-                        print_CUDA_matrix(dC_cur, MAX_BLOCK_ROWS_C + 1, MAX_BLOCK_COLS_C + 1, "C (w/ column checksum)", HIGHLIGHT_LAST_ROW_AND_COL, NULL, NULL, 0);
+                        print_CUDA_matrix(dC_cur, MAX_BLOCK_ROWS_C + 1, MAX_BLOCK_COLS_C + 1, "C (w/ column checksum)", HIGHLIGHT_LAST_ROW_AND_COL, error_xs[error_id], error_ys[error_id], errors_count);
 
                     // compute control checksums after mul
                     {
                         ScopedTimer timer("compute control checksums", POST);
 
                         // compute col control checksum
-
-                        gridDim = dim3(MAX_BLOCK_COLS_C + 1);
-                        blockDim = dim3(1, tileDim.y);
-                        sharedMemSize = linearDimToBytes(tileDim.y);
-                        kernels::compute_checksums<<<gridDim, blockDim, sharedMemSize, *stream_C_cur>>>(dC_cur, MAX_BLOCK_ROWS_C, (MAX_BLOCK_COLS_C + 1), ReductionDirection::ALONG_COL, d_cc_control1);
+                        C_compute_checksum(dC_cur, ReductionDirection::ALONG_COL, max_block_cols_B, max_block_rows_A, *stream_C_cur, d_cc_control1);
 
                         // compute row control checksum
-
-                        gridDim = dim3(1, MAX_BLOCK_ROWS_C + 1);
-                        blockDim = dim3(tileDim.x, 1);
-                        sharedMemSize = linearDimToBytes(tileDim.x);
-                        kernels::compute_checksums<<<gridDim, blockDim, sharedMemSize, *stream_Cbis_cur>>>(dC_cur, (MAX_BLOCK_ROWS_C + 1), MAX_BLOCK_COLS_C, ReductionDirection::ALONG_ROW, d_rc_control1);
+                        C_compute_checksum(dC_cur, ReductionDirection::ALONG_ROW, max_block_cols_B, max_block_rows_A, *stream_Cbis_cur, d_rc_control1);
 
                         cudaDeviceSynchronize();
                         CUDA_CHECK
@@ -407,6 +419,16 @@ namespace cuda
                                 break;
 
                             case NO_ERROR:
+                                break;
+
+                            case ERROR_ONLY_IN_LAST_COL_CHECKSUMS:
+                                result_correct = true;
+                                C_compute_checksum(dC_cur, ReductionDirection::ALONG_ROW, max_block_cols_B, max_block_rows_A, *stream_C_cur, NULL);
+                                break;
+
+                            case ERROR_ONLY_IN_LAST_ROW_CHECKSUMS:
+                                result_correct = true;
+                                C_compute_checksum(dC_cur, ReductionDirection::ALONG_COL, max_block_cols_B, max_block_rows_A, *stream_C_cur, NULL);
                                 break;
                         }
                     }

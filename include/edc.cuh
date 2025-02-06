@@ -8,7 +8,9 @@ namespace cuda
     {
         NO_ERROR = 0,
         CORRECTED_ERROR = 1,
-        UNCORRECTABLE_ERROR = 2
+        UNCORRECTABLE_ERROR = 2,
+        ERROR_ONLY_IN_LAST_ROW_CHECKSUMS = 3,
+        ERROR_ONLY_IN_LAST_COL_CHECKSUMS = 4,
     };
 
 #define EDC_EPSILON 1e-5f; // tolerance for error detection

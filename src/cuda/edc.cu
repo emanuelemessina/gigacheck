@@ -25,6 +25,9 @@ namespace cuda
         cudaMalloc(&d_mismatch_info, 4 * sizeof(int)); // mismatch_count_x/y, error_x/y
         cudaMemset(d_mismatch_info, 0, 4 * sizeof(int));
 
+        bool last_col_checksum_wrong = false;
+		bool last_row_checksum_wrong = false;
+
         CUDA_CHECK
 
 #define MISMATCH_COUNT_X 0
@@ -110,8 +113,17 @@ namespace cuda
                 error_xs[i] = error_xs[0];
 
             // discard errors on checksum vectors
-            if (error_xs[i] == cols || error_ys[i] == rows)
+            if (error_xs[i] == cols)
+            {
+                last_col_checksum_wrong = true;
                 continue;
+            }
+
+            if (error_ys[i] == rows)
+            {
+                last_row_checksum_wrong = true;
+                continue;
+            }
 
             non_discarded++;
 
@@ -152,7 +164,14 @@ namespace cuda
         CUDA_CHECK
 
         if (non_discarded == 0)
-            edc_res = NO_ERROR;
+        {
+            if (last_col_checksum_wrong)
+                edc_res = ERROR_ONLY_IN_LAST_COL_CHECKSUMS;
+            else if (last_row_checksum_wrong)
+                edc_res = ERROR_ONLY_IN_LAST_ROW_CHECKSUMS;
+            else
+                edc_res = NO_ERROR;
+        }
 
     cleanup:
 
