@@ -89,11 +89,28 @@ namespace programs
                             int y = collinear_errors ? (align_on_x ? fixed_coord : random_int(limit_y)) : random_int(limit_y);
                             std::pair<int, int> point = std::make_pair(x, y);
 
+                            float val;
+                            bool already_exists = false;
+                            do
+                            {
+                                already_exists = false;
+                                val = random_float(globals::useIntValues);
+
+                                for (int j = 0; j < error_points.size(); j++)
+                                {
+                                    if (error_values[j] == val)
+                                    {
+                                        already_exists = true;
+                                        break;
+                                    }
+                                }
+                            } while (already_exists);
+
                             if (error_points.find(point) == error_points.end())
                             {
                                 error_xs[error_points.size()] = x;
                                 error_ys[error_points.size()] = y;
-                                error_values[error_points.size()] = random_float(globals::useIntValues);
+                                error_values[error_points.size()] = val;
                                 error_points.insert(point);
                             }
                         }
