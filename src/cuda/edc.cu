@@ -7,7 +7,7 @@
 
 namespace cuda
 {
-    EDCResult errors_detect_correct(const float* d_ec_matrix, int rows, int cols, float* d_cc_control, float* d_rc_control, cudaStream_t mainStream, cudaStream_t secondaryStream)
+    EDCResult errors_detect_correct(const float* d_ec_matrix, int rows, int cols, float* d_cc_control, float* d_rc_control, cudaStream_t mainStream, cudaStream_t secondaryStream, bool* recompute_vertical_checksums, bool* recompute_horizontal_checksums)
     {
         EDCResult edc_res;
 
@@ -24,9 +24,6 @@ namespace cuda
         int* d_mismatch_info;
         cudaMalloc(&d_mismatch_info, 4 * sizeof(int)); // mismatch_count_x/y, error_x/y
         cudaMemset(d_mismatch_info, 0, 4 * sizeof(int));
-
-        bool last_col_checksum_wrong = false;
-		bool last_row_checksum_wrong = false;
 
         CUDA_CHECK
 
@@ -115,13 +112,13 @@ namespace cuda
             // discard errors on checksum vectors
             if (error_xs[i] == cols)
             {
-                last_col_checksum_wrong = true;
+                *recompute_horizontal_checksums = true;
                 continue;
             }
 
             if (error_ys[i] == rows)
             {
-                last_row_checksum_wrong = true;
+                *recompute_vertical_checksums = true;
                 continue;
             }
 
@@ -164,14 +161,7 @@ namespace cuda
         CUDA_CHECK
 
         if (non_discarded == 0)
-        {
-            if (last_col_checksum_wrong)
-                edc_res = ERROR_ONLY_IN_LAST_COL_CHECKSUMS;
-            else if (last_row_checksum_wrong)
-                edc_res = ERROR_ONLY_IN_LAST_ROW_CHECKSUMS;
-            else
-                edc_res = NO_ERROR;
-        }
+            edc_res = NO_ERROR;
 
     cleanup:
 

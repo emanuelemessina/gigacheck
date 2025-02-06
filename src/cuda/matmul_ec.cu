@@ -228,7 +228,10 @@ namespace cuda
         {
             ScopedTimer timer("error detection (+ correction)", POST);
 
-            EDCResult edc_res = errors_detect_correct(C, MAX_BLOCK_ROWS_C, MAX_BLOCK_COLS_C, d_cc_control, d_rc_control, stream, streamBis);
+            bool recompute_vertical_checksums = false;
+            bool recompute_horizontal_checksums = false;
+
+            EDCResult edc_res = errors_detect_correct(C, MAX_BLOCK_ROWS_C, MAX_BLOCK_COLS_C, d_cc_control, d_rc_control, stream, streamBis, &recompute_vertical_checksums, &recompute_horizontal_checksums);
 
             // choice: don't send back the result if it's wrong
             // NOTE: now the result may be partial, since an error will stop the rest
@@ -244,15 +247,13 @@ namespace cuda
 
                 case NO_ERROR:
                     break;
-
-                case ERROR_ONLY_IN_LAST_COL_CHECKSUMS:
-                    C_compute_checksum(C, ReductionDirection::ALONG_ROW, max_block_cols_B, max_block_rows_A, stream, NULL);
-                    break;
-
-                case ERROR_ONLY_IN_LAST_ROW_CHECKSUMS:
-                    C_compute_checksum(C, ReductionDirection::ALONG_COL, max_block_cols_B, max_block_rows_A, stream, NULL);
-                    break;
             }
+
+            if (recompute_horizontal_checksums)
+                C_compute_checksum(C, ReductionDirection::ALONG_ROW, max_block_cols_B, max_block_rows_A, stream, NULL);
+
+            if (recompute_vertical_checksums)
+                C_compute_checksum(C, ReductionDirection::ALONG_COL, max_block_cols_B, max_block_rows_A, stream, NULL);
         }
 
         cudaFree(d_cc_control);
