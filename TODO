@@ -2,8 +2,6 @@ By priority:
 
 - profile everything
 - can further optimize block sizes, memory... ?
-- can remove some cudaDeviceSynchronize() ?
-- update matmul to various sizes?
 - improve timers that are now not so good for split matrices
 
 Paper:
