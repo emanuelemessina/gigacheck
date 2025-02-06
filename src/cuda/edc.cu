@@ -42,7 +42,8 @@ namespace cuda
 
         cudaMemcpyAsync(mismatch_info + 2, d_mismatch_info + 2, 2 * sizeof(float), cudaMemcpyDeviceToHost, secondaryStream);
 
-        cudaDeviceSynchronize();
+        cudaStreamSynchronize(mainStream);
+        cudaStreamSynchronize(secondaryStream);
         CUDA_CHECK
 
 #define AXIS_X ReductionDirection::ALONG_COL
@@ -98,7 +99,6 @@ namespace cuda
         float* corrected_vals;
         cudaMallocHost(&corrected_vals, num_errors * sizeof(float));
 
-        cudaDeviceSynchronize();
         CUDA_CHECK
 
         for (int i = 0; i < num_errors; ++i)
@@ -149,7 +149,7 @@ namespace cuda
             }
         }
 
-        cudaDeviceSynchronize();
+        cudaStreamSynchronize(secondaryStream);
 
         CUDA_CHECK
 

@@ -164,6 +164,9 @@ namespace cuda
         cudaMalloc(&d_cc_control, (MAX_BLOCK_COLS_C + 1) * sizeof(float));
         cudaMalloc(&d_rc_control, (MAX_BLOCK_ROWS_C + 1) * sizeof(float));
 
+        cudaEvent_t C_err_added;
+        cudaEventCreate(&C_err_added);
+
         // rows, cols for dC_cur
         (*block_rows_C_cur) = CEIL_DIV(ROWS_C, num_split_other_dim);
         (*block_cols_C_cur) = CEIL_DIV(COLS_C, num_split_other_dim);
@@ -182,7 +185,6 @@ namespace cuda
             int sharedMemSize = 2 * dim2ToBytes(tileDim);
             kernels::tiled_matmul<<<gridDim, tileDim, sharedMemSize, stream>>>(A, B, C, max_block_rows_A + 1, max_block_cols_A, max_block_cols_B + 1);
 
-            cudaDeviceSynchronize();
             CUDA_CHECK
         }
 
@@ -192,8 +194,8 @@ namespace cuda
 
             for (int i = 0; i < errors_count; i++)
                 cudaMemcpyAsync(C + error_ys[i] * (MAX_BLOCK_COLS_C + 1) + error_xs[i], &(error_values[i]), sizeof(float), cudaMemcpyHostToDevice, stream);
+            cudaEventRecord(C_err_added, stream);
 
-            cudaDeviceSynchronize();
             CUDA_CHECK
         }
 
@@ -209,9 +211,9 @@ namespace cuda
             C_compute_checksum(C, ReductionDirection::ALONG_COL, max_block_cols_B, max_block_rows_A, stream, d_cc_control);
 
             // compute row control checksum
+            cudaStreamWaitEvent(streamBis, C_err_added);
             C_compute_checksum(C, ReductionDirection::ALONG_ROW, max_block_cols_B, max_block_rows_A, streamBis, d_rc_control);
 
-            cudaDeviceSynchronize();
             CUDA_CHECK
         }
 
@@ -258,6 +260,7 @@ namespace cuda
 
         cudaFree(d_cc_control);
         cudaFree(d_rc_control);
+        cudaEventDestroy(C_err_added);
     }
 
     EDCResult matmul_ec(float* A, float* B, float* C, int rows_A, int cols_A, int cols_B, int errors_count, int** error_xs, int** error_ys, float** error_values, Strategy strategy)
@@ -381,10 +384,21 @@ namespace cuda
         int block_rows_C_alt;
         int block_cols_C_alt;
 
+        // Sync events
+        cudaEvent_t A_copied;
+        cudaEvent_t B_copied;
+        cudaEvent_t A_alt_copied;
+        cudaEvent_t B_alt_copied;
+
         if (strategy != noBuffer && strategy != bufferABC_for2muls)
         {
             copy_matrix_compute_checksum(A, dA_cur, 0, num_split_other_dim, 0, num_split_common_dim, rows_A, cols_A, max_block_rows_A, max_block_cols_A, *stream_A_cur, 'A');
+            cudaEventCreate(&A_copied);
+            cudaEventRecord(A_copied, *stream_A_cur);
+
             copy_matrix_compute_checksum(B, dB_cur, 0, num_split_common_dim, 0, num_split_other_dim, ROWS_B, cols_B, MAX_BLOCK_ROWS_B, max_block_cols_B, *stream_B_cur, 'B');
+            cudaEventCreate(&B_copied);
+            cudaEventRecord(B_copied, *stream_B_cur);
         }
 
         for (int C_row = 0; C_row < num_split_other_dim && result_correct; C_row++)
@@ -412,14 +426,29 @@ namespace cuda
                         if (strategy == noBuffer)
                         {
                             copy_matrix_compute_checksum(A, dA_cur, C_row, num_split_other_dim, block, num_split_common_dim, rows_A, cols_A, max_block_rows_A, max_block_cols_A, *stream_A_cur, 'A');
+                            cudaEventCreate(&A_copied);
+                            cudaEventRecord(A_copied, *stream_A_cur);
+
                             copy_matrix_compute_checksum(B, dB_cur, block, num_split_common_dim, C_col, num_split_other_dim, ROWS_B, cols_B, MAX_BLOCK_ROWS_B, max_block_cols_B, *stream_B_cur, 'B');
+                            cudaEventCreate(&B_copied);
+                            cudaEventRecord(B_copied, *stream_B_cur);
                         }
                         else if (strategy == bufferABC_for2muls)
                         {
                             copy_matrix_compute_checksum(A, dA_cur, C_row, num_split_other_dim, block, num_split_common_dim, rows_A, cols_A, max_block_rows_A, max_block_cols_A, *stream_A_cur, 'A');
+                            cudaEventCreate(&A_copied);
+                            cudaEventRecord(A_copied, *stream_A_cur);
+
                             copy_matrix_compute_checksum(B, dB_cur, block, num_split_common_dim, C_col, num_split_other_dim, ROWS_B, cols_B, MAX_BLOCK_ROWS_B, max_block_cols_B, *stream_B_cur, 'B');
+                            cudaEventCreate(&B_copied);
+                            cudaEventRecord(B_copied, *stream_B_cur);
+
                             if (C_col + 1 < num_split_other_dim)
+                            {
                                 copy_matrix_compute_checksum(B, dB_alt, block, num_split_common_dim, C_col + 1, num_split_other_dim, ROWS_B, cols_B, MAX_BLOCK_ROWS_B, max_block_cols_B, *stream_B_alt, 'B');
+                                cudaEventCreate(&B_alt_copied);
+                                cudaEventRecord(B_alt_copied, *stream_B_alt);
+                            }
                         }
                         else
                         {
@@ -440,19 +469,34 @@ namespace cuda
                                     }
                                 }
                                 copy_matrix_compute_checksum(A, dA_alt, next_C_row, num_split_other_dim, next_block, num_split_common_dim, rows_A, cols_A, max_block_rows_A, max_block_cols_A, *stream_A_alt, 'A');
+                                cudaEventCreate(&A_alt_copied);
+                                cudaEventRecord(A_alt_copied, *stream_A_alt);
+
                                 copy_matrix_compute_checksum(B, dB_alt, next_block, num_split_common_dim, next_C_col, num_split_other_dim, ROWS_B, cols_B, MAX_BLOCK_ROWS_B, max_block_cols_B, *stream_B_alt, 'B');
+                                cudaEventCreate(&B_alt_copied);
+                                cudaEventRecord(B_alt_copied, *stream_B_alt);
                             }
                         }
 
-                        cudaDeviceSynchronize();
                         CUDA_CHECK
                     }
 
                     int error_id = block + C_col * num_split_common_dim + C_row * num_split_common_dim * num_split_other_dim;
+
+                    cudaStreamWaitEvent(*stream_C_cur, A_copied);
+                    cudaStreamWaitEvent(*stream_C_cur, B_copied);
+                    if (strategy != bufferABC_for2muls | C_col + 1 >= num_split_other_dim)
+                        cudaEventDestroy(A_copied);
+                    cudaEventDestroy(B_copied);
                     C_mult_check_correct(dA_cur, dB_cur, dC_cur, rows_A, cols_B, &block_rows_C_cur, &block_cols_C_cur, C_row, C_col, block, max_block_rows_A, max_block_cols_A, max_block_cols_B, *stream_C_cur, *stream_Cbis_cur, num_split_common_dim, num_split_other_dim, errors_count, error_xs[error_id], error_ys[error_id], error_values[error_id], &result_correct, &result_corrected);
 
                     if (strategy == bufferABC_for2muls && C_col + 1 < num_split_other_dim)
                     {
+						cudaStreamWaitEvent(*stream_C_alt, A_copied);
+                        cudaStreamWaitEvent(*stream_C_alt, B_alt_copied);
+                        cudaEventDestroy(A_copied);
+                        cudaEventDestroy(B_alt_copied);
+
                         error_id = block + (C_col + 1) * num_split_common_dim + C_row * num_split_common_dim * num_split_other_dim;
                         C_mult_check_correct(dA_cur, dB_alt, dC_alt, rows_A, cols_B, &block_rows_C_alt, &block_cols_C_alt, C_row, C_col + 1, block, max_block_rows_A, max_block_cols_A, max_block_cols_B, *stream_C_alt, *stream_Cbis_alt, num_split_common_dim, num_split_other_dim, errors_count, error_xs[error_id], error_ys[error_id], error_values[error_id], &result_correct_alt, &result_corrected_alt);
                     }
@@ -465,6 +509,8 @@ namespace cuda
                             SWAP(dB_cur, dB_alt)
                             SWAP(stream_A_cur, stream_A_alt)
                             SWAP(stream_B_cur, stream_B_alt)
+                            SWAP(A_copied, A_alt_copied)
+                            SWAP(B_copied, B_alt_copied)
                     }
                 }
                 // send back result (without checksums)
@@ -495,8 +541,6 @@ namespace cuda
                         case noBuffer:
                             cp_matrix_from_CUDA(dC_cur, C, block_rows_C_cur, block_cols_C_cur, MAX_BLOCK_COLS_C, offset, COLS_C, *stream_C_cur);
                     }
-
-                    // cudaDeviceSynchronize();
 
                     CUDA_CHECK
                 }
