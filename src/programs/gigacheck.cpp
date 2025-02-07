@@ -61,7 +61,7 @@ namespace programs
             std::vector<float*> per_block_error_values;
 
             int splits_square, splits;
-            matrix::choose_division(ra, ca, cb, &splits, &splits_square, strategy);
+            matrix::calc_splits(strategy, ra, ca, cb, &splits, &splits_square);
 
             for (int i = 0; i < splits * splits_square * splits_square; i++)
             {

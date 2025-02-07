@@ -358,7 +358,7 @@ namespace cuda
         int num_split_common_dim;
         int num_split_other_dim;
 
-        matrix::choose_division(rows_A, cols_A, cols_B, &num_split_common_dim, &num_split_other_dim, strategy);
+        matrix::calc_splits(strategy, rows_A, cols_A, cols_B, &num_split_common_dim, &num_split_other_dim);
 
         // Final sizes of matrices (excluding the checksums)
         int max_block_rows_A = CEIL_DIV(rows_A, num_split_other_dim);
