@@ -110,6 +110,24 @@ void print_CUDA_matrix(float* mat, int rows, int cols, const char* name, int fla
     CUDA_CHECK
 }
 
+/**
+ * @brief Loads a matrix (or just a block) to GPU memory, while also computing the row/col checksums if needed
+ *
+ * @param[in]   h_mat             The matrix to copy
+ * @param[out]  d_mat             Where to copy it
+ * @param[in]   blockRow          The row of the block to be copied
+ * @param[in]   num_split_row     The number of blocks a row was split into
+ * @param[in]   blockCol          The col of the block to be copied
+ * @param[in]   num_split_col     The number of blocks a col was split into
+ * @param[in]   totRows           Total number of rows in the matrix
+ * @param[in]   totCols           Total number of cols in the matrix
+ * @param[in]   max_block_rows    The max amount of rows in any block
+ * @param[in]   max_block_cols    The max amount of cols in any block
+ * @param[in]   stream            Which stream to use for the async operations
+ * @param[in]   name              Either 'A' or 'B', will change the behaviour based on what each matrix need
+ * @param[in]   without_checksum  Skip computing the checksum
+ *
+ */
 void copy_matrix_compute_checksum(float* h_mat, float* d_mat, int blockRow, int num_split_row, int blockCol, int num_split_col, int totRows, int totCols, int max_block_rows, int max_block_cols, cudaStream_t stream, char name, bool without_checksum)
 {
     // copy to device
@@ -151,6 +169,17 @@ void copy_matrix_compute_checksum(float* h_mat, float* d_mat, int blockRow, int 
             0);
 }
 
+/**
+ * @brief Compute the checksum for matrix C
+ *
+ * @param[inout]  C                 The matrix on which to compute the checksums
+ * @param[in]     direction         Whether to compute row or col checksums
+ * @param[in]     max_block_cols_B  The max amount of cols in any block of B
+ * @param[in]     max_block_rows_A  The max amount of rows in any block of A
+ * @param[in]     stream            Which stream to use for the async operations
+ * @param[out]    result_array      The array where to put the checksums. If NULL, they are inserted in the last row/col of C
+ *
+ */
 void C_compute_checksum(float* C, ReductionDirection direction, int max_block_cols_B, int max_block_rows_A, cudaStream_t stream, float* result_array)
 {
     // compute col control checksum
@@ -175,6 +204,35 @@ void C_compute_checksum(float* C, ReductionDirection direction, int max_block_co
 
 namespace cuda
 {
+    /**
+     * @brief Executes multiplication, error injection, error detection and error correction
+     *
+     * @param[in]   A                     The first matrix to multiply
+     * @param[in]   B                     The second matrix to multiply
+     * @param[out]  C                     The result matrix
+     * @param[in]   rows_A                Total number of rows in A
+     * @param[in]   cols_B                Total number of cols in B
+     * @param[out]  block_rows_C_cur      The number of meaningful rows in the current block of C
+     * @param[out]  block_cols_C_cur      The number of meaningful cols in the current block of C
+     * @param[in]   C_row                 The coordinates (row) of the block of C that is being calculated
+     * @param[in]   C_col                 The coordinates (col) of the block of C that is being calculated
+     * @param[in]   block                 C[r, c] = A[r, 0]*B[0, c] + A[r, 1]*B[1, c] + ... => block is the value of this index for the current multiplication
+     * @param[in]   max_block_rows_A      The max amount of rows in any block of A
+     * @param[in]   max_block_cols_A      The max amount of cols in any block of A
+     * @param[in]   max_block_cols_B      The max amount of cols in any block of B
+     * @param[in]   stream                Which stream to use as main stream
+     * @param[in]   streamBis             Which stream to use for operations concurrent to the main stream
+     * @param[in]   num_split_common_dim  The number of blocks the matrix was split into (in the direction where blocks of A and B must have the same size)
+     * @param[in]   num_split_other_dim   The number of blocks the matrix was split into (in the other direction)
+     * @param[in]   errors_count          The number of errors to be introduced
+     * @param[in]   error_xs              The coordinates (x) of the errors to be introduced
+     * @param[in]   error_ys              The coordinates (y) of the errors to be introduced
+     * @param[in]   error_values          The values of the errors
+     * @param[out]  result_correct        Whether the final value of C left in output is correct
+     * @param[out]  result_corrected      Whether the matrix had errors, but all errors were corrected
+     * @param[in]   without_error_check   Skip error injection, detection and correction
+     *
+     */
     void C_mult_check_correct(float* A, float* B, float* C, int rows_A, int cols_B, int* block_rows_C_cur, int* block_cols_C_cur, int C_row, int C_col, int block, int max_block_rows_A, int max_block_cols_A, int max_block_cols_B, cudaStream_t stream, cudaStream_t streamBis, int num_split_common_dim, int num_split_other_dim, int errors_count, int* error_xs, int* error_ys, float* error_values, bool* result_correct, bool* result_corrected, bool without_error_check)
     {
         int extra = without_error_check ? 0 : 1;
