@@ -63,19 +63,20 @@ namespace programs
             int splits_square, splits;
             matrix::calc_splits(strategy, ra, ca, cb, &splits, &splits_square);
 
-            for (int i = 0; i < splits * splits_square * splits_square; i++)
-            {
+            const int total_blocks = splits * splits_square * splits_square;
+            const int limit_x = CEIL_DIV(ca, splits_square) + 1;
+            const int limit_y = CEIL_DIV(ra, splits_square) + 1;
 
+            for (int i = 0; i < total_blocks; i++)
+            {
                 int* error_xs = (int*)malloc(errors_count * sizeof(int));
                 int* error_ys = (int*)malloc(errors_count * sizeof(int));
                 float* error_values = (float*)malloc(errors_count * sizeof(float));
 
-                std::set<std::pair<int, int>> error_points;
-                int limit_y = CEIL_DIV(rc, splits_square) + 1;
-                int limit_x = CEIL_DIV(cc, splits_square) + 1;
-
                 if (errors_count > 0) // generate errors
                 {
+                    std::set<std::pair<int, int>> error_points;
+
                     bool align_on_x = std::rand() % 2;
                     int fixed_coord = std::rand() % (align_on_x ? limit_y : limit_x);
 
@@ -83,31 +84,20 @@ namespace programs
                     {
                         int x = collinear_errors ? (align_on_x ? random_int(limit_x) : fixed_coord) : random_int(limit_x);
                         int y = collinear_errors ? (align_on_x ? fixed_coord : random_int(limit_y)) : random_int(limit_y);
-                        std::pair<int, int> point = std::make_pair(x, y);
+                        std::pair<int, int> point(x, y);
 
-                        float val;
-                        bool already_exists = false;
-                        do
+                        if (error_points.insert(point).second)
                         {
-                            already_exists = false;
-                            val = random_float(globals::useIntValues);
-
-                            for (int j = 0; j < error_points.size(); j++)
+                            float val;
+                            do
                             {
-                                if (error_values[j] == val)
-                                {
-                                    already_exists = true;
-                                    break;
-                                }
-                            }
-                        } while (already_exists);
+                                val = random_float(globals::useIntValues);
+                            } while (globals::useIntValues && std::find(error_values, error_values + error_points.size(), val) != error_values + error_points.size()); // avoid same val if using ints (debug)
 
-                        if (error_points.find(point) == error_points.end())
-                        {
-                            error_xs[error_points.size()] = x;
-                            error_ys[error_points.size()] = y;
-                            error_values[error_points.size()] = val;
-                            error_points.insert(point);
+                            int idx = error_points.size() - 1;
+                            error_xs[idx] = x;
+                            error_ys[idx] = y;
+                            error_values[idx] = val;
                         }
                     }
                 }

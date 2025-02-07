@@ -352,7 +352,7 @@ namespace cuda
         cudaEventDestroy(C_err_added);
     }
 
-    EDCResult matmul_ec(float* A, float* B, float* C, int rows_A, int cols_A, int cols_B, int errors_count, int** error_xs, int** error_ys, float** error_values, MulStrategy strategy, bool without_error_check)
+    EDCResult matmul_ec(float* A, float* B, float* C, int rows_A, int cols_A, int cols_B, int errors_count, int** per_block_error_xs, int** per_block_error_ys, float** error_values, MulStrategy strategy, bool without_error_check)
     {
         // calculate the number of blocks to split A and B into, based on the chosen strategy and the available memory
 
@@ -561,7 +561,7 @@ namespace cuda
                     CUDA_WAIT_DESTROY_EVENT(A_copied, stream_C, strategy != parallelMul || C_col + 1 >= num_split_other_dim)
                     CUDA_WAIT_DESTROY_EVENT(B_copied, stream_C, true)
 
-                    C_mult_check_correct(dA, dB, dC, rows_A, cols_B, &block_rows_C_cur, &block_cols_C_cur, C_row, C_col, block, max_block_rows_A, max_block_cols_A, max_block_cols_B, stream_C, stream_Cbis, num_split_common_dim, num_split_other_dim, errors_count, error_xs[error_id], error_ys[error_id], error_values[error_id], &result_correct, &result_corrected, without_error_check);
+                    C_mult_check_correct(dA, dB, dC, rows_A, cols_B, &block_rows_C_cur, &block_cols_C_cur, C_row, C_col, block, max_block_rows_A, max_block_cols_A, max_block_cols_B, stream_C, stream_Cbis, num_split_common_dim, num_split_other_dim, errors_count, per_block_error_xs[error_id], per_block_error_ys[error_id], error_values[error_id], &result_correct, &result_corrected, without_error_check);
 
                     if (strategy != parallelMul || C_col + 1 >= num_split_other_dim)
                         CUDA_CREATE_RECORD_EVENT(A_can_be_overwritten, stream_C);
@@ -573,7 +573,7 @@ namespace cuda
                         CUDA_WAIT_DESTROY_EVENT(B_alt_copied, stream_C_alt, true)
 
                         error_id = block + (C_col + 1) * num_split_common_dim + C_row * num_split_common_dim * num_split_other_dim;
-                        C_mult_check_correct(dA, dB_alt, dC_alt, rows_A, cols_B, &block_rows_C_alt, &block_cols_C_alt, C_row, C_col + 1, block, max_block_rows_A, max_block_cols_A, max_block_cols_B, stream_C_alt, stream_Cbis_alt, num_split_common_dim, num_split_other_dim, errors_count, error_xs[error_id], error_ys[error_id], error_values[error_id], &result_correct_alt, &result_corrected_alt, without_error_check);
+                        C_mult_check_correct(dA, dB_alt, dC_alt, rows_A, cols_B, &block_rows_C_alt, &block_cols_C_alt, C_row, C_col + 1, block, max_block_rows_A, max_block_cols_A, max_block_cols_B, stream_C_alt, stream_Cbis_alt, num_split_common_dim, num_split_other_dim, errors_count, per_block_error_xs[error_id], per_block_error_ys[error_id], error_values[error_id], &result_correct_alt, &result_corrected_alt, without_error_check);
 
                         CUDA_CREATE_RECORD_EVENT(A_can_be_overwritten, stream_C);
                         CUDA_CREATE_RECORD_EVENT(B_alt_can_be_overwritten, stream_C_alt);
