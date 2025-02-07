@@ -57,26 +57,29 @@ namespace programs
         {
             ScopedTimer timer("GPU mul", PRE);
 
-            std::vector<int*> per_block_error_xs, per_block_error_ys;
-            std::vector<float*> per_block_error_values;
-
             int splits_square, splits;
             matrix::calc_splits(strategy, ra, ca, cb, &splits, &splits_square);
 
             const int total_blocks = splits * splits_square * splits_square;
-            const int limit_x = CEIL_DIV(ca, splits_square) + 1;
-            const int limit_y = CEIL_DIV(ra, splits_square) + 1;
+            const int limit_x = CEIL_DIV(cc, splits_square) + 1;
+            const int limit_y = CEIL_DIV(rc, splits_square) + 1;
+
+            std::vector<int*> per_block_error_xs, per_block_error_ys;
+            std::vector<float*> per_block_error_values;
+
+            per_block_error_xs.reserve(total_blocks);
+            per_block_error_ys.reserve(total_blocks);
+            per_block_error_values.reserve(total_blocks);
 
             for (int i = 0; i < total_blocks; i++)
             {
                 int* error_xs = (int*)malloc(errors_count * sizeof(int));
                 int* error_ys = (int*)malloc(errors_count * sizeof(int));
                 float* error_values = (float*)malloc(errors_count * sizeof(float));
+                std::set<std::pair<int, int>> error_points;
 
                 if (errors_count > 0) // generate errors
                 {
-                    std::set<std::pair<int, int>> error_points;
-
                     bool align_on_x = std::rand() % 2;
                     int fixed_coord = std::rand() % (align_on_x ? limit_y : limit_x);
 

@@ -13,17 +13,23 @@
         b = tmp;      \
     }
 
-#define CUDA_WAIT_DESTROY_EVENT(event, stream, destroy) \
-    {                                                   \
-        cudaStreamWaitEvent(stream, event);             \
-        if (destroy)                                    \
-            cudaEventDestroy(event);                    \
-    }
-
 #define CUDA_CREATE_RECORD_EVENT(event, stream) \
     {                                           \
         cudaEventCreate(&event);                \
         cudaEventRecord(event, stream);         \
+    }
+
+#define CUDA_WAIT_EVENT_DESTROY(event, stream) \
+    {                                          \
+        cudaStreamWaitEvent(stream, event);    \
+        cudaEventDestroy(event);               \
+    }
+
+#define CUDA_WAIT_EVENT_DESTROY_IF(event, stream, destroy) \
+    {                                                      \
+        cudaStreamWaitEvent(stream, event);                \
+        if (destroy)                                       \
+            cudaEventDestroy(event);                       \
     }
 
 /**
@@ -42,17 +48,17 @@
  * Moreover, if  M != 1 the next row of the matrix is not immediately after the previous one,
  * but it starts W cells after the previous one starts (next_row_offset)
  *
- * @param[in]   matrix                The original, host matrix
- * @param[out]  dst                   The GPU allocated memory where to copy
- * @param[in]   rows                  The number of rows that should be copied
- * @param[in]   cols                  The number of columns that should be copied
- * @param[in]   allocated_cols        The number of columns that are allocated for each matrix row (may be an overallocation of cols)
- * @param[in]   initial_offset        How much of the original matrix must be skipped at the beginning
- * @param[in]   next_row_offset       How much of the original matrix must be skipped to transition to the next row
- * @param[in]   leave_cell_after_row  If a cell should be left empty after each row (== copying B or a block of B, since there needs to be space for the row checksum)
- * @param[in]   stream                The stream on which to work
+ * @param[in]   matrix                  The original, host matrix
+ * @param[out]  dst                     The GPU allocated memory where to copy
+ * @param[in]   rows                    The number of rows that should be copied
+ * @param[in]   cols                    The number of columns that should be copied
+ * @param[in]   allocated_cols          The number of columns that are allocated for each matrix row (may be an overallocation of cols)
+ * @param[in]   initial_offset          How much of the original matrix must be skipped at the beginning
+ * @param[in]   next_row_offset         How much of the original matrix must be skipped to transition to the next row
+ * @param[in]   will_need_row_checksum  Whether to copy this block leaving a free column in device memory to store the row checksum vector
+ * @param[in]   stream                  The stream on which to work
  */
-void host_block_to_device(float* matrix, float* dst, int rows, int cols, int allocated_cols, int initial_offset, int next_row_offset, bool leave_cell_after_row, cudaStream_t stream)
+void host_block_to_device(float* matrix, float* dst, int rows, int cols, int allocated_cols, int initial_offset, int next_row_offset, bool will_need_row_checksum, cudaStream_t stream)
 {
     matrix += initial_offset;
     for (int i = 0; i < rows; i++)
@@ -60,7 +66,7 @@ void host_block_to_device(float* matrix, float* dst, int rows, int cols, int all
         cudaMemcpyAsync(dst, matrix, cols * sizeof(float), cudaMemcpyHostToDevice, stream);
 
         matrix += next_row_offset;
-        dst += allocated_cols + (leave_cell_after_row ? 1 : 0);
+        dst += allocated_cols + (will_need_row_checksum ? 1 : 0);
     }
 }
 
@@ -395,7 +401,7 @@ namespace cuda
                 cudaMalloc(&dC_alt, size_C_ec); // in both cases we need a buffer for C'
 
             case preloadAB:                         // AB->C, A'B' (while mul on C, load next blocks A' and B')
-                if (strategy != parallelMul)        // ?
+                if (strategy != parallelMul)        // exploit common A in parallel mul
                     cudaMalloc(&dA_alt, size_A_ec); // buffer for A'
                 cudaMalloc(&dB_alt, size_B_ec);     // buffer for B'
 
@@ -407,7 +413,8 @@ namespace cuda
 
         CUDA_CHECK
 
-        // create streams for parallel executions
+        // declare streams for parallel executions
+
         cudaStream_t stream_A;
         cudaStream_t stream_B;
         cudaStream_t stream_C;
@@ -418,7 +425,7 @@ namespace cuda
         cudaStream_t stream_C_alt;
         cudaStream_t stream_Cbis_alt;
 
-        switch (strategy)
+        switch (strategy) // create just the streams we need
         {
             case preloadAB_deferUnloadC:
             case parallelMul:
@@ -436,7 +443,19 @@ namespace cuda
                 cudaStreamCreate(&stream_Cbis);
         }
 
-        // result
+        // declare events
+
+        cudaEvent_t A_copied;
+        cudaEvent_t B_copied;
+        cudaEvent_t A_alt_copied;
+        cudaEvent_t B_alt_copied;
+
+        cudaEvent_t A_can_be_overwritten;
+        cudaEvent_t B_can_be_overwritten;
+        cudaEvent_t B_alt_can_be_overwritten;
+
+        // block result flags
+
         bool result_correct = true;
         bool result_corrected = false;
         bool result_correct_alt = true;
@@ -450,16 +469,6 @@ namespace cuda
 
         int block_rows_C_alt;
         int block_cols_C_alt;
-
-        // Sync events
-        cudaEvent_t A_copied;
-        cudaEvent_t B_copied;
-        cudaEvent_t A_alt_copied;
-        cudaEvent_t B_alt_copied;
-
-        cudaEvent_t A_can_be_overwritten;
-        cudaEvent_t B_can_be_overwritten;
-        cudaEvent_t B_alt_can_be_overwritten;
 
         CUDA_CREATE_RECORD_EVENT(A_can_be_overwritten, stream_A);
         CUDA_CREATE_RECORD_EVENT(B_can_be_overwritten, stream_B);
@@ -475,15 +484,18 @@ namespace cuda
             CUDA_CREATE_RECORD_EVENT(B_copied, stream_B);
         }
 
-        for (int C_row = 0; C_row < num_split_other_dim && result_correct; C_row++)
+        // multiply in blocks
+
+        for (int C_row = 0; C_row < num_split_other_dim && result_correct; C_row++) // iterate over C rows
         {
-            for (int C_col = 0; C_col < num_split_other_dim && result_correct; C_col += (strategy == parallelMul ? 2 : 1))
+            for (int C_col = 0; C_col < num_split_other_dim && result_correct; C_col += (strategy == parallelMul ? 2 : 1)) // iterate over C cols (if 2 muls we process two cols at a time)
             {
+                // clear the result buffer(s) so we can performe additive mul with one kernel
                 cudaMemsetAsync(dC, 0, size_C_ec, stream_C);
                 if (strategy == parallelMul && C_col + 1 < num_split_other_dim)
                     cudaMemsetAsync(dC_alt, 0, size_C_ec, stream_C_alt);
 
-                for (int block = 0; block < num_split_common_dim && result_correct; block++)
+                for (int block = 0; block < num_split_common_dim && result_correct; block++) // iterate over blocks along the common dimension
                 {
 
                     // send matrices to device and calculate checksums in parallel on different streams
@@ -499,27 +511,27 @@ namespace cuda
                         ScopedTimer timer("A,B to device + compute input checksums", POST);
                         if (strategy == simple)
                         {
-                            CUDA_WAIT_DESTROY_EVENT(A_can_be_overwritten, stream_A, true)
+                            CUDA_WAIT_EVENT_DESTROY(A_can_be_overwritten, stream_A)
                             loadcheck_block(A, dA, C_row, num_split_other_dim, block, num_split_common_dim, rows_A, cols_A, max_block_rows_A, max_block_cols_A, stream_A, 'A', without_error_check);
                             CUDA_CREATE_RECORD_EVENT(A_copied, stream_A);
 
-                            CUDA_WAIT_DESTROY_EVENT(B_can_be_overwritten, stream_B, true)
+                            CUDA_WAIT_EVENT_DESTROY(B_can_be_overwritten, stream_B)
                             loadcheck_block(B, dB, block, num_split_common_dim, C_col, num_split_other_dim, ROWS_B, cols_B, MAX_BLOCK_ROWS_B, max_block_cols_B, stream_B, 'B', without_error_check);
                             CUDA_CREATE_RECORD_EVENT(B_copied, stream_B);
                         }
                         else if (strategy == parallelMul)
                         {
-                            CUDA_WAIT_DESTROY_EVENT(A_can_be_overwritten, stream_A, true)
+                            CUDA_WAIT_EVENT_DESTROY(A_can_be_overwritten, stream_A)
                             loadcheck_block(A, dA, C_row, num_split_other_dim, block, num_split_common_dim, rows_A, cols_A, max_block_rows_A, max_block_cols_A, stream_A, 'A', without_error_check);
                             CUDA_CREATE_RECORD_EVENT(A_copied, stream_A);
 
-                            CUDA_WAIT_DESTROY_EVENT(B_can_be_overwritten, stream_B, true)
+                            CUDA_WAIT_EVENT_DESTROY(B_can_be_overwritten, stream_B)
                             loadcheck_block(B, dB, block, num_split_common_dim, C_col, num_split_other_dim, ROWS_B, cols_B, MAX_BLOCK_ROWS_B, max_block_cols_B, stream_B, 'B', without_error_check);
                             CUDA_CREATE_RECORD_EVENT(B_copied, stream_B);
 
                             if (C_col + 1 < num_split_other_dim)
                             {
-                                CUDA_WAIT_DESTROY_EVENT(B_alt_can_be_overwritten, stream_B_alt, true)
+                                CUDA_WAIT_EVENT_DESTROY(B_alt_can_be_overwritten, stream_B_alt)
                                 loadcheck_block(B, dB_alt, block, num_split_common_dim, C_col + 1, num_split_other_dim, ROWS_B, cols_B, MAX_BLOCK_ROWS_B, max_block_cols_B, stream_B_alt, 'B', without_error_check);
                                 CUDA_CREATE_RECORD_EVENT(B_alt_copied, stream_B_alt);
                             }
@@ -543,11 +555,11 @@ namespace cuda
                                     }
                                 }
 
-                                CUDA_WAIT_DESTROY_EVENT(A_can_be_overwritten, stream_A_alt, true)
+                                CUDA_WAIT_EVENT_DESTROY(A_can_be_overwritten, stream_A_alt)
                                 loadcheck_block(A, dA_alt, next_C_row, num_split_other_dim, next_block, num_split_common_dim, rows_A, cols_A, max_block_rows_A, max_block_cols_A, stream_A_alt, 'A', without_error_check);
                                 CUDA_CREATE_RECORD_EVENT(A_alt_copied, stream_A_alt);
 
-                                CUDA_WAIT_DESTROY_EVENT(B_can_be_overwritten, stream_B_alt, true)
+                                CUDA_WAIT_EVENT_DESTROY(B_can_be_overwritten, stream_B_alt)
                                 loadcheck_block(B, dB_alt, next_block, num_split_common_dim, next_C_col, num_split_other_dim, ROWS_B, cols_B, MAX_BLOCK_ROWS_B, max_block_cols_B, stream_B_alt, 'B', without_error_check);
                                 CUDA_CREATE_RECORD_EVENT(B_alt_copied, stream_B_alt);
                             }
@@ -558,8 +570,8 @@ namespace cuda
 
                     int error_id = block + C_col * num_split_common_dim + C_row * num_split_common_dim * num_split_other_dim;
 
-                    CUDA_WAIT_DESTROY_EVENT(A_copied, stream_C, strategy != parallelMul || C_col + 1 >= num_split_other_dim)
-                    CUDA_WAIT_DESTROY_EVENT(B_copied, stream_C, true)
+                    CUDA_WAIT_EVENT_DESTROY_IF(A_copied, stream_C, strategy != parallelMul || C_col + 1 >= num_split_other_dim)
+                    CUDA_WAIT_EVENT_DESTROY(B_copied, stream_C)
 
                     mul_inject_edc(dA, dB, dC, rows_A, cols_B, &block_rows_C_cur, &block_cols_C_cur, C_row, C_col, block, max_block_rows_A, max_block_cols_A, max_block_cols_B, stream_C, stream_Cbis, num_split_common_dim, num_split_other_dim, errors_count, per_block_error_xs[error_id], per_block_error_ys[error_id], error_values[error_id], &result_correct, &result_corrected, without_error_check);
 
@@ -569,8 +581,8 @@ namespace cuda
 
                     if (strategy == parallelMul && C_col + 1 < num_split_other_dim)
                     {
-                        CUDA_WAIT_DESTROY_EVENT(A_copied, stream_C_alt, true)
-                        CUDA_WAIT_DESTROY_EVENT(B_alt_copied, stream_C_alt, true)
+                        CUDA_WAIT_EVENT_DESTROY(A_copied, stream_C_alt)
+                        CUDA_WAIT_EVENT_DESTROY(B_alt_copied, stream_C_alt)
 
                         error_id = block + (C_col + 1) * num_split_common_dim + C_row * num_split_common_dim * num_split_other_dim;
                         mul_inject_edc(dA, dB_alt, dC_alt, rows_A, cols_B, &block_rows_C_alt, &block_cols_C_alt, C_row, C_col + 1, block, max_block_rows_A, max_block_cols_A, max_block_cols_B, stream_C_alt, stream_Cbis_alt, num_split_common_dim, num_split_other_dim, errors_count, per_block_error_xs[error_id], per_block_error_ys[error_id], error_values[error_id], &result_correct_alt, &result_corrected_alt, without_error_check);
@@ -591,7 +603,10 @@ namespace cuda
                             SWAP(B_copied, B_alt_copied)
                     }
                 }
-                // send back result (without checksums)
+
+                // result block has been accumulated
+                // send it to host mem (without checksums)
+                // (send two blocks in case of parallel mul)
 
                 {
                     ScopedTimer timer("C to host", POST);
