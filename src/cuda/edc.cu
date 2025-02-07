@@ -139,7 +139,7 @@ namespace cuda
             corrected_vals[i] = correction_checksums[i] - control_checksums[i] + error_values[i];
 
             // write correction
-            cudaMemcpyAsync((void*)(d_ec_matrix + error_ys[i] * (cols + 1) + error_xs[i]), corrected_vals + i, sizeof(float), cudaMemcpyHostToDevice, secondaryStream);
+            cudaMemcpyAsync((void*)(d_ec_matrix + error_ys[i] * (cols + 1) + error_xs[i]), corrected_vals + i, sizeof(float), cudaMemcpyHostToDevice, mainStream);
 
             if (globals::debugPrint)
             {
@@ -149,7 +149,7 @@ namespace cuda
             }
         }
 
-        cudaStreamSynchronize(secondaryStream);
+        cudaStreamSynchronize(mainStream);
 
         CUDA_CHECK
 
