@@ -4,10 +4,10 @@
 
 typedef enum
 {
-    noBuffer,
-    bufferAB,
-    bufferABC_forWriteback,
-    bufferABC_for2muls
+    simple,
+    preloadAB,
+    preloadAB_deferUnloadC,
+    parallelMul
 } Strategy;
 
 namespace globals

@@ -326,16 +326,16 @@ namespace cuda
 
         switch (strategy)
         {
-            case bufferABC_forWriteback:
-            case bufferABC_for2muls:
+            case preloadAB_deferUnloadC:
+            case parallelMul:
                 cudaMalloc(&dC2, size_C_ec);
 
-            case bufferAB:
-                if (strategy != bufferABC_for2muls)
+            case preloadAB:
+                if (strategy != parallelMul)
                     cudaMalloc(&dA2, size_A_ec);
                 cudaMalloc(&dB2, size_B_ec);
 
-            case noBuffer:
+            case simple:
                 cudaMalloc(&dA1, size_A_ec);
                 cudaMalloc(&dB1, size_B_ec);
                 cudaMalloc(&dC1, size_C_ec);
@@ -376,16 +376,16 @@ namespace cuda
 
         switch (strategy)
         {
-            case bufferABC_forWriteback:
-            case bufferABC_for2muls:
+            case preloadAB_deferUnloadC:
+            case parallelMul:
                 cudaStreamCreate(&stream_C2);
                 cudaStreamCreate(&stream_C2bis);
 
-            case bufferAB:
+            case preloadAB:
                 cudaStreamCreate(&stream_A2);
                 cudaStreamCreate(&stream_B2);
 
-            case noBuffer:
+            case simple:
                 cudaStreamCreate(&stream_A1);
                 cudaStreamCreate(&stream_B1);
                 cudaStreamCreate(&stream_C1);
@@ -419,10 +419,10 @@ namespace cuda
 
         CUDA_CREATE_RECORD_EVENT(A_can_be_overwritten, *stream_A_cur);
         CUDA_CREATE_RECORD_EVENT(B_can_be_overwritten, *stream_B_cur);
-        if (strategy == bufferABC_for2muls)
+        if (strategy == parallelMul)
             CUDA_CREATE_RECORD_EVENT(B_alt_can_be_overwritten, *stream_B_alt);
 
-        if (strategy != noBuffer && strategy != bufferABC_for2muls)
+        if (strategy != simple && strategy != parallelMul)
         {
             copy_matrix_compute_checksum(A, dA_cur, 0, num_split_other_dim, 0, num_split_common_dim, rows_A, cols_A, max_block_rows_A, max_block_cols_A, *stream_A_cur, 'A', without_error_check);
             CUDA_CREATE_RECORD_EVENT(A_copied, *stream_A_cur);
@@ -433,10 +433,10 @@ namespace cuda
 
         for (int C_row = 0; C_row < num_split_other_dim && result_correct; C_row++)
         {
-            for (int C_col = 0; C_col < num_split_other_dim && result_correct; C_col += (strategy == bufferABC_for2muls ? 2 : 1))
+            for (int C_col = 0; C_col < num_split_other_dim && result_correct; C_col += (strategy == parallelMul ? 2 : 1))
             {
                 cudaMemsetAsync(dC_cur, 0, size_C_ec, *stream_C_cur);
-                if (strategy == bufferABC_for2muls && C_col + 1 < num_split_other_dim)
+                if (strategy == parallelMul && C_col + 1 < num_split_other_dim)
                     cudaMemsetAsync(dC_alt, 0, size_C_ec, *stream_C_alt);
 
                 for (int block = 0; block < num_split_common_dim && result_correct; block++)
@@ -453,7 +453,7 @@ namespace cuda
 
                     {
                         ScopedTimer timer("A,B to device + compute input checksums", POST);
-                        if (strategy == noBuffer)
+                        if (strategy == simple)
                         {
                             CUDA_WAIT_DESTROY_EVENT(A_can_be_overwritten, *stream_A_cur, true)
                             copy_matrix_compute_checksum(A, dA_cur, C_row, num_split_other_dim, block, num_split_common_dim, rows_A, cols_A, max_block_rows_A, max_block_cols_A, *stream_A_cur, 'A', without_error_check);
@@ -463,7 +463,7 @@ namespace cuda
                             copy_matrix_compute_checksum(B, dB_cur, block, num_split_common_dim, C_col, num_split_other_dim, ROWS_B, cols_B, MAX_BLOCK_ROWS_B, max_block_cols_B, *stream_B_cur, 'B', without_error_check);
                             CUDA_CREATE_RECORD_EVENT(B_copied, *stream_B_cur);
                         }
-                        else if (strategy == bufferABC_for2muls)
+                        else if (strategy == parallelMul)
                         {
                             CUDA_WAIT_DESTROY_EVENT(A_can_be_overwritten, *stream_A_cur, true)
                             copy_matrix_compute_checksum(A, dA_cur, C_row, num_split_other_dim, block, num_split_common_dim, rows_A, cols_A, max_block_rows_A, max_block_cols_A, *stream_A_cur, 'A', without_error_check);
@@ -514,16 +514,16 @@ namespace cuda
 
                     int error_id = block + C_col * num_split_common_dim + C_row * num_split_common_dim * num_split_other_dim;
 
-                    CUDA_WAIT_DESTROY_EVENT(A_copied, *stream_C_cur, strategy != bufferABC_for2muls || C_col + 1 >= num_split_other_dim)
+                    CUDA_WAIT_DESTROY_EVENT(A_copied, *stream_C_cur, strategy != parallelMul || C_col + 1 >= num_split_other_dim)
                     CUDA_WAIT_DESTROY_EVENT(B_copied, *stream_C_cur, true)
 
                     C_mult_check_correct(dA_cur, dB_cur, dC_cur, rows_A, cols_B, &block_rows_C_cur, &block_cols_C_cur, C_row, C_col, block, max_block_rows_A, max_block_cols_A, max_block_cols_B, *stream_C_cur, *stream_Cbis_cur, num_split_common_dim, num_split_other_dim, errors_count, error_xs[error_id], error_ys[error_id], error_values[error_id], &result_correct, &result_corrected, without_error_check);
 
-                    if (strategy != bufferABC_for2muls || C_col + 1 >= num_split_other_dim)
+                    if (strategy != parallelMul || C_col + 1 >= num_split_other_dim)
                         CUDA_CREATE_RECORD_EVENT(A_can_be_overwritten, *stream_C_cur);
                     CUDA_CREATE_RECORD_EVENT(B_can_be_overwritten, *stream_C_cur);
 
-                    if (strategy == bufferABC_for2muls && C_col + 1 < num_split_other_dim)
+                    if (strategy == parallelMul && C_col + 1 < num_split_other_dim)
                     {
                         CUDA_WAIT_DESTROY_EVENT(A_copied, *stream_C_alt, true)
                         CUDA_WAIT_DESTROY_EVENT(B_alt_copied, *stream_C_alt, true)
@@ -537,8 +537,8 @@ namespace cuda
 
                     switch (strategy)
                     {
-                        case bufferABC_forWriteback:
-                        case bufferAB:
+                        case preloadAB_deferUnloadC:
+                        case preloadAB:
                             SWAP(dA_cur, dA_alt)
                             SWAP(dB_cur, dB_alt)
                             SWAP(stream_A_cur, stream_A_alt)
@@ -557,7 +557,7 @@ namespace cuda
 
                     switch (strategy)
                     {
-                        case bufferABC_forWriteback:
+                        case preloadAB_deferUnloadC:
                             SWAP(dC_cur, dC_alt)
                             SWAP(stream_C_cur, stream_C_alt)
                             SWAP(stream_Cbis_cur, stream_Cbis_alt)
@@ -567,12 +567,12 @@ namespace cuda
                             cp_matrix_from_CUDA(dC_alt, C, block_rows_C_alt, block_cols_C_alt, MAX_BLOCK_COLS_C + extra, offset, COLS_C, *stream_C_alt);
                             break;
 
-                        case bufferABC_for2muls:
+                        case parallelMul:
                             if (C_col + 1 < num_split_other_dim)
                                 cp_matrix_from_CUDA(dC_alt, C, block_rows_C_alt, block_cols_C_alt, MAX_BLOCK_COLS_C + extra, offset2, COLS_C, *stream_C_alt);
 
-                        case bufferAB:
-                        case noBuffer:
+                        case preloadAB:
+                        case simple:
                             cp_matrix_from_CUDA(dC_cur, C, block_rows_C_cur, block_cols_C_cur, MAX_BLOCK_COLS_C + extra, offset, COLS_C, *stream_C_cur);
                     }
 
@@ -585,16 +585,16 @@ namespace cuda
 
         switch (strategy)
         {
-            case bufferABC_forWriteback:
-            case bufferABC_for2muls:
+            case preloadAB_deferUnloadC:
+            case parallelMul:
                 cudaStreamDestroy(stream_C2);
                 cudaStreamDestroy(stream_C2bis);
 
-            case bufferAB:
+            case preloadAB:
                 cudaStreamDestroy(stream_A2);
                 cudaStreamDestroy(stream_B2);
 
-            case noBuffer:
+            case simple:
                 cudaStreamDestroy(stream_A1);
                 cudaStreamDestroy(stream_B1);
                 cudaStreamDestroy(stream_C1);
@@ -603,16 +603,16 @@ namespace cuda
 
         switch (strategy)
         {
-            case bufferABC_forWriteback:
-            case bufferABC_for2muls:
+            case preloadAB_deferUnloadC:
+            case parallelMul:
                 cudaFree(dC2);
 
-            case bufferAB:
-                if (strategy != bufferABC_for2muls)
+            case preloadAB:
+                if (strategy != parallelMul)
                     cudaFree(dA2);
                 cudaFree(dB2);
 
-            case noBuffer:
+            case simple:
                 cudaFree(dA1);
                 cudaFree(dB1);
                 cudaFree(dC1);

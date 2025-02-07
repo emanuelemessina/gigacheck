@@ -10,11 +10,11 @@ void matrix::choose_division(int rows_A, int cols_A, int cols_B, int* num_split_
 
     switch (strategy)
     {
-        case bufferABC_forWriteback:
-        case bufferABC_for2muls:
+        case preloadAB_deferUnloadC:
+        case parallelMul:
             factC = 2;
 
-        case bufferAB:
+        case preloadAB:
             factA = factB = 2;
     }
 
