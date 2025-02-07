@@ -49,7 +49,7 @@
  * @param[in]   allocated_cols        The number of columns that are allocated for each matrix row (may be an overallocation of cols)
  * @param[in]   initial_offset        How much of the original matrix must be skipped at the beginning
  * @param[in]   next_row_offset       How much of the original matrix must be skipped to transition to the next row
- * @param[in]   leave_cell_after_row  If a cell should be left empty after each row (== copying B or a block of B)
+ * @param[in]   leave_cell_after_row  If a cell should be left empty after each row (== copying B or a block of B, since there needs to be space for the row checksum)
  * @param[in]   stream                The stream on which to work
  */
 void cp_matrix_to_CUDA(float* matrix, float* dst, int rows, int cols, int allocated_cols, int initial_offset, int next_row_offset, bool leave_cell_after_row, cudaStream_t stream)
