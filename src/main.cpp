@@ -49,7 +49,7 @@ int main(int argc, char* argv[])
     auto print = cli.get("print").getValue<bool>();
     auto ints = cli.get("ints").getValue<bool>();
     auto tileside = cli.get("tileside").getValue<int>();
-    Strategy strategy = (Strategy)(cli.get("strategy").getValue<int>() - 1);
+    cuda::MulStrategy strategy = (cuda::MulStrategy)(cli.get("strategy").getValue<int>() - 1);
     globals::debugPrint = print;
     globals::useIntValues = ints;
     globals::tileSide = tileside;

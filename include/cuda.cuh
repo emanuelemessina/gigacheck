@@ -6,6 +6,15 @@
 
 namespace cuda
 {
+
+    typedef enum
+    {
+        simple,
+        preloadAB,
+        preloadAB_deferUnloadC,
+        parallelMul
+    } MulStrategy;
+
     struct Info
     {
         int deviceNumber;
@@ -37,5 +46,5 @@ namespace cuda
      * @param[in]   error_values  buffer with the values of the errors
      * @param[in]   strategy      which strategy to use when matrices do not fit the GPU memory
      */
-    EDCResult matmul_ec(float* A, float* B, float* C, int rows_A, int cols_A, int cols_B, int errors_count, int** error_xs, int** error_ys, float** error_values, Strategy strategy, bool without_error_check);
+    EDCResult matmul_ec(float* A, float* B, float* C, int rows_A, int cols_A, int cols_B, int errors_count, int** error_xs, int** error_ys, float** error_values, MulStrategy strategy, bool without_error_check);
 };

@@ -2,14 +2,6 @@
 
 #include <stddef.h>
 
-typedef enum
-{
-    simple,
-    preloadAB,
-    preloadAB_deferUnloadC,
-    parallelMul
-} Strategy;
-
 namespace globals
 {
     extern bool debugPrint;

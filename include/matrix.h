@@ -1,4 +1,5 @@
 // common includes
+#include "cuda.cuh"
 #include "globals.h"
 #include "inferred_matrix_sizes.h"
 #include <stdio.h>
@@ -60,6 +61,7 @@ namespace matrix
      * @param[out]  num_split_common_dim  The number of blocks for dividing A's columns and B's rows into (= the dimensions multiplied together)
      * @param[out]  num_split_other_dim   The number of blocks for dividing A's rows and B's columns into (= the "other" dimensions)
      *
+     * @returns false if there is not enough device memory to store the checksums
      */
-    void calc_splits(Strategy strategy, int rows_A, int cols_A, int cols_B, int* num_split_common_dim, int* num_split_other_dim);
+    bool calc_splits(cuda::MulStrategy strategy, int rows_A, int cols_A, int cols_B, int* num_split_common_dim, int* num_split_other_dim);
 }

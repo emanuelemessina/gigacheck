@@ -16,7 +16,7 @@
 
 namespace programs
 {
-    int gigacheck(int ra, int ca, int cb, bool vanilla, bool check, int errors_count, bool collinear_errors, Strategy strategy)
+    int gigacheck(int ra, int ca, int cb, bool vanilla, bool check, int errors_count, bool collinear_errors, cuda::MulStrategy strategy)
     {
         cuda::Info info = cuda::getInfo();
 
