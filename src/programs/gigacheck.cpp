@@ -25,7 +25,7 @@ namespace programs
         printf("GIGACHECK\n");
         printf("=========\n\n");
 
-#define WOUT (COUT << std::setw(18))
+#define WOUT (COUT << std::setw(25))
 
         std::string strategyName;
         switch (strategy)
@@ -53,8 +53,9 @@ namespace programs
         WOUT << "-> C: " << rc << " x " << cc << ENDL;
         WOUT << "Values type: " << (globals::useIntValues ? "int" : "float") << ENDL;
         WOUT << "GPU mul alg: " << (globals::noEDC ? "vanilla" : "error corrected") << ENDL;
+        WOUT << "Host memory required: " << humanReadableMemSize((globals::useIntValues ? sizeof(int) : sizeof(float)) * (ra * ca + rb * cb + rc * cc)) << ENDL;
         if (!globals::noEDC)
-            WOUT << "# errors: " << errors_count << (errors_count > 1 && collinear_errors ? "(collinear)" : "") << ENDL;
+            WOUT << "# errors: " << errors_count << (errors_count > 1 && collinear_errors ? " (collinear)" : "") << ENDL;
         WOUT << "Tile side: " << globals::tileSide << ENDL;
         WOUT << "Strategy: " << strategy + 1 << " (" << strategyName << ")" << ENDL;
         printf("\n\n");
@@ -156,7 +157,7 @@ namespace programs
 
         if (verify)
         {
-            ScopedTimer timer("CPU mul verify", ENCLOSED);
+            ScopedTimer timer("CPU mul verify", POST);
             result = matrix::verify_product(A, B, C, ra, ca, cb);
         }
 
