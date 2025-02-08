@@ -2,8 +2,6 @@
 #include "kernels.cuh"
 #include <stdio.h>
 
-#define ABS(a) (a > 0 ? a : -a)
-
 __global__ void kernels::find_checksum_mismatches(const float* ec_matrix, int rows, int cols, float* control_checksum, ChecksumsToCompare checksums_to_compare, int* mismatch_count, int* mismatch_indexes, int* error_flag)
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;

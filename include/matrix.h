@@ -1,10 +1,10 @@
 #pragma once
 
 // common includes
-#include "ceildiv.h"
 #include "cuda.cuh"
 #include "globals.h"
 #include "inferred_matrix_sizes.h"
+#include "mathdef.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string>

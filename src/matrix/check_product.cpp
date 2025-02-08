@@ -1,8 +1,6 @@
 #include "iomod.h"
 #include "matrix.h"
 
-#define ABS(a) (a > 0 ? a : -a)
-
 bool matrix::verify_product(float* A, float* B, float* C, int ra, int ca, int cb)
 {
     for (int r = 0; r < rc; r++)
