@@ -535,15 +535,19 @@ namespace cuda
 
                     int block_id = block_common_id + C_block_idx * num_split_common_dim + C_block_idy * num_split_common_dim * num_split_other_dim;
 
+					// Wait for operands to be loaded
                     CUDA_WAIT_EVENT_DESTROY_IF(A_copied, stream_C, strategy != parallelMul || C_block_idx + 1 >= num_split_other_dim)
                     CUDA_WAIT_EVENT_DESTROY(B_copied, stream_C)
 
+					// Compute product
                     mul_inject_edc(dA, dB, dC, rows_A, cols_B, num_split_common_dim, num_split_other_dim, max_block_rows_A, max_block_cols_A, max_block_cols_B, C_block_idy, C_block_idx, &block_rows_C_cur, &block_cols_C_cur, stream_C, stream_Cbis, errors_count, per_block_error_xs[block_id], per_block_error_ys[block_id], error_values[block_id], &result_correct, &result_corrected);
 
+					// Notify that A and B are no longer needed, and as such they can be overwritten
                     if (strategy != parallelMul || C_block_idx + 1 >= num_split_other_dim)
                         CUDA_CREATE_RECORD_EVENT(A_can_be_overwritten, stream_C);
                     CUDA_CREATE_RECORD_EVENT(B_can_be_overwritten, stream_C);
 
+					// If parallel multiplication, and C' is meaningful, compute the other product
                     if (strategy == parallelMul && C_block_idx + 1 < num_split_other_dim)
                     {
                         CUDA_WAIT_EVENT_DESTROY(A_copied, stream_C_alt)
@@ -556,6 +560,7 @@ namespace cuda
                         CUDA_CREATE_RECORD_EVENT(B_alt_can_be_overwritten, stream_C_alt);
                     }
 
+					// Switch A and B buffers if required
                     switch (strategy)
                     {
                         case preloadAB_deferUnloadC:
