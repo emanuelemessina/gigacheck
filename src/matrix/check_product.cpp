@@ -1,7 +1,7 @@
 #include "iomod.h"
 #include "matrix.h"
 
-bool matrix::check_product(float* A, float* B, float* C, int ra, int ca, int cb)
+bool matrix::verify_product(float* A, float* B, float* C, int ra, int ca, int cb)
 {
     for (int r = 0; r < rc; r++)
     {

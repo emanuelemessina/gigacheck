@@ -1,4 +1,8 @@
+#pragma once
+
 // common includes
+#include "ceildiv.h"
+#include "cuda.cuh"
 #include "globals.h"
 #include "inferred_matrix_sizes.h"
 #include <stdio.h>
@@ -18,9 +22,11 @@ namespace matrix
      */
     float* alloc(int rows, int cols, bool initialize);
 
+    // print flags
 #define HIGHLIGHT_LAST_ROW 1
 #define HIGHLIGHT_LAST_COL 2
 #define HIGHLIGHT_LAST_ROW_AND_COL 3
+#define IS_DEVICE_MAT 4
 
     /**
      * @brief Prints a matrix
@@ -29,6 +35,7 @@ namespace matrix
      * @param[in]   rows  #rows
      * @param[in]   cols  #cols
      * @param[in]   name  The name of the matrix (optional)
+     * @param[in]   flags see matrix.h
      * @param highlight_xs x coords of the elements to highlight
      * @param highlight_xs y coords of the elements to highlight
      * @param highlight_count number of elements to highlight -> length of xs (and ys)
@@ -48,5 +55,19 @@ namespace matrix
      *
      * @return True if the product is correct, false otherwise
      */
-    bool check_product(float* A, float* B, float* C, int ra, int ca, int cb);
+    bool verify_product(float* A, float* B, float* C, int ra, int ca, int cb);
+
+    /**
+     * @brief Decideds if the matrices should be split in blocks to fit the global memory, and if so how many
+     *
+     * @param[in]   strategy              Which strategy to use when matrices do not fit the GPU memory
+     * @param[in]   rows_A                #rows of matrix A
+     * @param[in]   cols_A                #cols of matrix A
+     * @param[in]   cols_B                #cols of matrix B
+     * @param[out]  num_split_common_dim  The number of blocks for dividing A's columns and B's rows into (= the dimensions multiplied together)
+     * @param[out]  num_split_other_dim   The number of blocks for dividing A's rows and B's columns into (= the "other" dimensions)
+     *
+     * @returns false if there is not enough device memory to store the checksums
+     */
+    bool calc_splits(cuda::MulStrategy strategy, int rows_A, int cols_A, int cols_B, int* num_split_common_dim, int* num_split_other_dim);
 }

@@ -21,7 +21,7 @@ void CLI::help()
     {
         const auto opt = pair.second;
         COUT << std::setw(10) << std::right << ("-" + opt.shortName + ", ")
-             << std::setw(15) << std::left << ("--" + opt.longName)
+             << std::setw(18) << std::left << ("--" + opt.longName)
              << " " << opt.description << ENDL;
     }
 }
