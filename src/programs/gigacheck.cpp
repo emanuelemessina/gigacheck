@@ -76,7 +76,7 @@ namespace programs
         }
 
         {
-            ScopedTimer timer("GPU mul", PRE);
+            ScopedTimer timer("GPU mul", POST);
 
             int splits_square, splits;
             matrix::calc_splits(strategy, ra, ca, cb, &splits, &splits_square);
@@ -156,7 +156,7 @@ namespace programs
 
         if (verify)
         {
-            ScopedTimer timer("CPU mul verify", PRE);
+            ScopedTimer timer("CPU mul verify", ENCLOSED);
             result = matrix::verify_product(A, B, C, ra, ca, cb);
         }
 
