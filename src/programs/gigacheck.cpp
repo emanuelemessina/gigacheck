@@ -27,6 +27,26 @@ namespace programs
 
 #define WOUT (COUT << std::setw(18))
 
+        std::string strategyName;
+        switch (strategy)
+        {
+            case cuda::MulStrategy::simple:
+                strategyName = "simple, no buffering";
+                break;
+
+            case cuda::MulStrategy::preloadAB:
+                strategyName = "pre-loading A and B, while computing the previous product";
+                break;
+
+            case cuda::MulStrategy::preloadAB_deferUnloadC:
+                strategyName = "pre-loading A and B, defer unloading C while computing the previous/next product";
+                break;
+
+            case cuda::MulStrategy::parallelMul:
+                strategyName = "two multiplications at the same time";
+                break;
+        }
+
         COUT << BOLD << "Params:" << RESET << ENDL;
         WOUT << "A: " << ra << " x " << ca << ENDL;
         WOUT << "B: " << rb << " x " << cb << ENDL;
@@ -36,6 +56,7 @@ namespace programs
         if (!globals::noEDC)
             WOUT << "# errors: " << errors_count << (errors_count > 1 && collinear_errors ? "(collinear)" : "") << ENDL;
         WOUT << "Tile side: " << globals::tileSide << ENDL;
+        WOUT << "Strategy: " << strategy + 1 << " (" << strategyName << ")" << ENDL;
         printf("\n\n");
 
         COUT << BOLD << "Device info:" << RESET << ENDL;
