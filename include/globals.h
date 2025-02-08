@@ -6,6 +6,7 @@ namespace globals
 {
     extern bool debugPrint;
     extern bool useIntValues;
+    extern bool noEDC;
 
     // default tile side for squared block tiles
     extern int tileSide;

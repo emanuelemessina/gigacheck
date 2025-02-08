@@ -1,8 +1,5 @@
 #pragma once
 
-#ifndef TIMER_H
-#define TIMER_H
-
 #include "iomod.h"
 #include <chrono>
 #include <functional>
@@ -70,5 +67,3 @@ class ScopedTimer
     TimerPrintMode mode;
     std::chrono::high_resolution_clock::time_point start;
 };
-
-#endif

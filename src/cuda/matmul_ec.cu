@@ -13,24 +13,11 @@
         b = tmp;      \
     }
 
-#define CUDA_CREATE_RECORD_EVENT(event, stream) \
-    {                                           \
-        cudaEventCreate(&event);                \
-        cudaEventRecord(event, stream);         \
-    }
-
-#define CUDA_WAIT_EVENT_DESTROY(event, stream) \
-    {                                          \
-        cudaStreamWaitEvent(stream, event);    \
-        cudaEventDestroy(event);               \
-    }
-
-#define CUDA_WAIT_EVENT_DESTROY_IF(event, stream, destroy) \
-    {                                                      \
-        cudaStreamWaitEvent(stream, event);                \
-        if (destroy)                                       \
-            cudaEventDestroy(event);                       \
-    }
+enum class OperandMatrix
+{
+    A = 'A',
+    B = 'B'
+};
 
 /**
  * @brief Copies a matrix (or a portion of it) to CUDA memory
@@ -56,7 +43,7 @@
  * @param[in]   initial_offset          How much of the original matrix must be skipped at the beginning
  * @param[in]   next_row_offset         How much of the original matrix must be skipped to transition to the next row
  * @param[in]   will_need_row_checksum  Whether to copy this block leaving a free column in device memory to store the row checksum vector
- * @param[in]   stream                  The stream on which to work
+ * @param[in]   stream                  on which to run the async copy
  */
 void host_block_to_device(float* matrix, float* dst, int rows, int cols, int allocated_cols, int initial_offset, int next_row_offset, bool will_need_row_checksum, cudaStream_t stream)
 {
@@ -80,7 +67,7 @@ void host_block_to_device(float* matrix, float* dst, int rows, int cols, int all
  * @param[in]   allocated_cols        The number of columns that are allocated for each matrix row (may be an overallocation of cols)
  * @param[in]   initial_offset        How much of the host matrix must be skipped at the beginning
  * @param[in]   next_row_offset       How much of the host matrix must be skipped to transition to the next row
- * @param[in]   stream                The stream on which to work
+ * @param[in]   stream                which to run the async copy
  */
 void device_block_to_host(float* matrix, float* dst, int rows, int cols, int allocated_cols, int initial_offset, int next_row_offset, cudaStream_t stream)
 {
@@ -95,32 +82,10 @@ void device_block_to_host(float* matrix, float* dst, int rows, int cols, int all
 }
 
 /**
- * @brief Given a matrix in global memory, prints it (by copying it to host memory first)
+ * @brief Loads a host matrix block to GPU memory, optionally computing a row/col checksum
  *
- * @param[in]  mat              The matrix to print
- * @param[in]  rows             Its number of rows
- * @param[in]  cols             Its number of columns
- * @param[in]  name             The name that should be printed
- * @param[in]  flags            Flags related to highlighting (as per matrix::print)
- * @param[in]  highlight_xs     Flags related to highlighting (as per matrix::print)
- * @param[in]  highlight_ys     Flags related to highlighting (as per matrix::print)
- * @param[in]  highlight_count  Flags related to highlighting (as per matrix::print)
- *
- */
-void print_device_matrix(float* mat, int rows, int cols, const char* name, int flags, int* highlight_xs, int* highlight_ys, int highlight_count)
-{
-    float* mat_host = matrix::alloc(rows, cols, false);
-    cudaMemcpy(mat_host, mat, rows * cols * sizeof(float), cudaMemcpyDeviceToHost);
-    matrix::print(mat_host, rows, cols, name, flags, highlight_xs, highlight_ys, highlight_count);
-    free(mat_host);
-    CUDA_CHECK
-}
-
-/**
- * @brief Loads a matrix (or just a block) to GPU memory, while also computing the row/col checksums if needed
- *
- * @param[in]   h_mat             The matrix to copy
- * @param[out]  d_mat             Where to copy it
+ * @param[in]   h_mat             src host matrix
+ * @param[out]  d_mat             dst device ptr
  * @param[in]   blockRow          The row of the block to be copied
  * @param[in]   num_split_row     The number of blocks a row was split into
  * @param[in]   blockCol          The col of the block to be copied
@@ -131,14 +96,13 @@ void print_device_matrix(float* mat, int rows, int cols, const char* name, int f
  * @param[in]   max_block_cols    The max amount of cols in any block
  * @param[in]   stream            Which stream to use for the async operations
  * @param[in]   name              Either 'A' or 'B', will change the behaviour based on what each matrix need
- * @param[in]   without_checksum  Skip computing the checksum
  *
  */
-void loadcheck_block(float* h_mat, float* d_mat, int blockRow, int num_split_row, int blockCol, int num_split_col, int totRows, int totCols, int max_block_rows, int max_block_cols, cudaStream_t stream, char name, bool without_checksum)
+void loadcheck_input_block(OperandMatrix operand, float* h_mat, float* d_mat, int blockRow, int num_split_row, int blockCol, int num_split_col, int totRows, int totCols, int max_block_rows, int max_block_cols, cudaStream_t stream)
 {
     // copy to device
-    int extra = without_checksum ? 0 : 1;
-    int size = name == 'A' ? ((max_block_rows + extra) * max_block_cols * sizeof(float)) : (max_block_rows * (max_block_cols + extra) * sizeof(float));
+    int extra = globals::noEDC ? 0 : 1;
+    int size = operand == OperandMatrix::A ? ((max_block_rows + extra) * max_block_cols * sizeof(float)) : (max_block_rows * (max_block_cols + extra) * sizeof(float));
     if (blockCol == num_split_col - 1 || blockRow == num_split_row - 1)
         cudaMemsetAsync(d_mat, 0, size, stream);
 
@@ -151,28 +115,39 @@ void loadcheck_block(float* h_mat, float* d_mat, int blockRow, int num_split_row
     if (blockRow == num_split_row - 1)
         block_rows = totRows - block_rows * blockRow;
 
-    host_block_to_device(h_mat, d_mat, block_rows, block_cols, max_block_cols, offset, totCols, name == 'B' && !without_checksum, stream);
+    host_block_to_device(h_mat, d_mat, block_rows, block_cols, max_block_cols, offset, totCols, operand == OperandMatrix::B && !globals::noEDC, stream);
 
-    if (!without_checksum)
+    if (!globals::noEDC)
     {
-        // calculate col checksums for A
-        dim3 gridDim = name == 'A' ? dim3(max_block_cols) : dim3(1, max_block_rows);
-        dim3 blockDim = name == 'A' ? dim3(1, tileDim.y) : dim3(tileDim.x, 1);
-        int sharedMemSize = linearDimToBytes(name == 'A' ? tileDim.y : tileDim.x);
-        kernels::compute_checksums<<<gridDim, blockDim, sharedMemSize, stream>>>(d_mat, max_block_rows, max_block_cols, name == 'A' ? ReductionDirection::ALONG_COL : ReductionDirection::ALONG_ROW);
+        // calculate col checksum for A / row checksum for B
+        dim3 gridDim = operand == OperandMatrix::A ? dim3(max_block_cols) : dim3(1, max_block_rows);
+        dim3 blockDim = operand == OperandMatrix::A ? dim3(1, tileDim.y) : dim3(tileDim.x, 1);
+        int sharedMemSize = linearDimToBytes(operand == OperandMatrix::A ? tileDim.y : tileDim.x);
+        kernels::compute_checksums<<<gridDim, blockDim, sharedMemSize, stream>>>(d_mat, max_block_rows, max_block_cols, operand == OperandMatrix::A ? ReductionDirection::ALONG_COL : ReductionDirection::ALONG_ROW);
     }
 
     // Print mat (with checksums)
     if (globals::debugPrint)
-        print_device_matrix(
+    {
+        std::string name(1, (char)operand);
+        int flags = IS_DEVICE_MAT;
+
+        if (!globals::noEDC)
+        {
+            name += "(w/";
+            name += operand == OperandMatrix::A ? "column" : "row";
+            name += " checksum)";
+
+            flags |= operand == OperandMatrix::A ? HIGHLIGHT_LAST_ROW : HIGHLIGHT_LAST_COL;
+        }
+
+        matrix::print(
             d_mat,
-            max_block_rows + (name == 'A' ? extra : 0),
-            max_block_cols + (name == 'A' ? 0 : extra),
-            without_checksum ? (name == 'A' ? "A" : "B") : (name == 'A' ? "A (w/ column checksum)" : "B (w/ column checksum)"),
-            without_checksum ? 0 : (name == 'A' ? HIGHLIGHT_LAST_ROW : HIGHLIGHT_LAST_COL),
-            NULL,
-            NULL,
-            0);
+            max_block_rows + (operand == OperandMatrix::A ? extra : 0),
+            max_block_cols + (operand == OperandMatrix::A ? 0 : extra),
+            name.c_str(),
+            flags);
+    }
 }
 
 /**
@@ -236,12 +211,11 @@ namespace cuda
      * @param[in]   error_values          The values of the errors
      * @param[out]  result_correct        Whether the final value of C left in output is correct
      * @param[out]  result_corrected      Whether the matrix had errors, but all errors were corrected
-     * @param[in]   without_error_check   Skip error injection, detection and correction
      *
      */
-    void mul_inject_edc(float* A, float* B, float* C, int rows_A, int cols_B, int* block_rows_C_cur, int* block_cols_C_cur, int C_row, int C_col, int block, int max_block_rows_A, int max_block_cols_A, int max_block_cols_B, cudaStream_t stream, cudaStream_t streamBis, int num_split_common_dim, int num_split_other_dim, int errors_count, int* error_xs, int* error_ys, float* error_values, bool* result_correct, bool* result_corrected, bool without_error_check)
+    void mul_inject_edc(float* A, float* B, float* C, int rows_A, int cols_B, int* block_rows_C_cur, int* block_cols_C_cur, int C_row, int C_col, int block, int max_block_rows_A, int max_block_cols_A, int max_block_cols_B, cudaStream_t stream, cudaStream_t streamBis, int num_split_common_dim, int num_split_other_dim, int errors_count, int* error_xs, int* error_ys, float* error_values, bool* result_correct, bool* result_corrected)
     {
-        int extra = without_error_check ? 0 : 1;
+        int extra = globals::noEDC ? 0 : 1;
 
         // rows, cols for dC
         (*block_rows_C_cur) = CEIL_DIV(ROWS_C, num_split_other_dim);
@@ -264,10 +238,10 @@ namespace cuda
             CUDA_CHECK
         }
 
-        if (without_error_check)
+        if (globals::noEDC)
         {
             if (globals::debugPrint)
-                print_device_matrix(C, MAX_BLOCK_ROWS_C + extra, MAX_BLOCK_COLS_C, "C", 0, NULL, NULL, 0);
+                matrix::print(C, MAX_BLOCK_ROWS_C + extra, MAX_BLOCK_COLS_C, "C", IS_DEVICE_MAT);
             return;
         }
 
@@ -296,7 +270,7 @@ namespace cuda
 
         // print dC (with mul checksums)
         if (globals::debugPrint)
-            print_device_matrix(C, MAX_BLOCK_ROWS_C + 1, MAX_BLOCK_COLS_C + 1, "C (w/ column checksum)", HIGHLIGHT_LAST_ROW_AND_COL, error_xs, error_ys, errors_count);
+            matrix::print(C, MAX_BLOCK_ROWS_C + 1, MAX_BLOCK_COLS_C + 1, "C (w/ column checksum)", HIGHLIGHT_LAST_ROW_AND_COL | IS_DEVICE_MAT, error_xs, error_ys, errors_count);
 
         // compute control checksums after mul
         {
@@ -316,8 +290,8 @@ namespace cuda
         if (globals::debugPrint)
         {
             std::vector<int> zeros(errors_count, 0);
-            print_device_matrix(d_rc_control, MAX_BLOCK_ROWS_C + 1, 1, "C control row checksum", HIGHLIGHT_LAST_COL, zeros.data(), error_ys, errors_count);
-            print_device_matrix(d_cc_control, 1, MAX_BLOCK_COLS_C + 1, "C control column checksum", HIGHLIGHT_LAST_ROW, error_xs, zeros.data(), errors_count);
+            matrix::print(d_rc_control, MAX_BLOCK_ROWS_C + 1, 1, "C control row checksum", HIGHLIGHT_LAST_COL | IS_DEVICE_MAT, zeros.data(), error_ys, errors_count);
+            matrix::print(d_cc_control, 1, MAX_BLOCK_COLS_C + 1, "C control column checksum", HIGHLIGHT_LAST_ROW | IS_DEVICE_MAT, error_xs, zeros.data(), errors_count);
         }
 
         // edc
@@ -358,7 +332,7 @@ namespace cuda
         cudaEventDestroy(C_err_added);
     }
 
-    EDCResult matmul_ec(float* A, float* B, float* C, int rows_A, int cols_A, int cols_B, int errors_count, int** per_block_error_xs, int** per_block_error_ys, float** error_values, MulStrategy strategy, bool without_error_check)
+    EDCResult matmul_ec(float* A, float* B, float* C, int rows_A, int cols_A, int cols_B, int errors_count, int** per_block_error_xs, int** per_block_error_ys, float** error_values, MulStrategy strategy)
     {
         // calculate the number of blocks to split A and B into, based on the chosen strategy and the available memory
 
@@ -387,7 +361,7 @@ namespace cuda
 
         // allocate device matrices with extra space for checksums A(m+1xn)B(nxp+1) = C(m+1xp+1)
 
-        int extra = without_error_check ? 0 : 1;
+        int extra = globals::noEDC ? 0 : 1;
         int size_A_ec = (max_block_rows_A + extra) * max_block_cols_A * sizeof(float);
         int size_B_ec = MAX_BLOCK_ROWS_B * (max_block_cols_B + extra) * sizeof(float);
         int size_C_ec = (MAX_BLOCK_ROWS_C + extra) * (MAX_BLOCK_COLS_C + extra) * sizeof(float);
@@ -401,7 +375,7 @@ namespace cuda
                 cudaMalloc(&dC_alt, size_C_ec); // in both cases we need a buffer for C'
 
             case preloadAB:                         // AB->C, A'B' (while mul on C, load next blocks A' and B')
-                if (strategy != parallelMul)        // exploit common A in parallel mul
+                if (strategy != parallelMul)        // exploit common A in parallel mul, don't allocate A'
                     cudaMalloc(&dA_alt, size_A_ec); // buffer for A'
                 cudaMalloc(&dB_alt, size_B_ec);     // buffer for B'
 
@@ -475,12 +449,12 @@ namespace cuda
         if (strategy == parallelMul)
             CUDA_CREATE_RECORD_EVENT(B_alt_can_be_overwritten, stream_B_alt);
 
-        if (strategy != simple && strategy != parallelMul)
+        if (strategy == preloadAB || strategy == preloadAB_deferUnloadC) // when using preloading, we need to load the first two operand blocks
         {
-            loadcheck_block(A, dA, 0, num_split_other_dim, 0, num_split_common_dim, rows_A, cols_A, max_block_rows_A, max_block_cols_A, stream_A, 'A', without_error_check);
+            loadcheck_input_block(OperandMatrix::A, A, dA, 0, num_split_other_dim, 0, num_split_common_dim, rows_A, cols_A, max_block_rows_A, max_block_cols_A, stream_A);
             CUDA_CREATE_RECORD_EVENT(A_copied, stream_A);
 
-            loadcheck_block(B, dB, 0, num_split_common_dim, 0, num_split_other_dim, ROWS_B, cols_B, MAX_BLOCK_ROWS_B, max_block_cols_B, stream_B, 'B', without_error_check);
+            loadcheck_input_block(OperandMatrix::B, B, dB, 0, num_split_common_dim, 0, num_split_other_dim, ROWS_B, cols_B, MAX_BLOCK_ROWS_B, max_block_cols_B, stream_B);
             CUDA_CREATE_RECORD_EVENT(B_copied, stream_B);
         }
 
@@ -512,27 +486,27 @@ namespace cuda
                         if (strategy == simple)
                         {
                             CUDA_WAIT_EVENT_DESTROY(A_can_be_overwritten, stream_A)
-                            loadcheck_block(A, dA, C_row, num_split_other_dim, block, num_split_common_dim, rows_A, cols_A, max_block_rows_A, max_block_cols_A, stream_A, 'A', without_error_check);
+                            loadcheck_input_block(OperandMatrix::A, A, dA, C_row, num_split_other_dim, block, num_split_common_dim, rows_A, cols_A, max_block_rows_A, max_block_cols_A, stream_A);
                             CUDA_CREATE_RECORD_EVENT(A_copied, stream_A);
 
                             CUDA_WAIT_EVENT_DESTROY(B_can_be_overwritten, stream_B)
-                            loadcheck_block(B, dB, block, num_split_common_dim, C_col, num_split_other_dim, ROWS_B, cols_B, MAX_BLOCK_ROWS_B, max_block_cols_B, stream_B, 'B', without_error_check);
+                            loadcheck_input_block(OperandMatrix::B, B, dB, block, num_split_common_dim, C_col, num_split_other_dim, ROWS_B, cols_B, MAX_BLOCK_ROWS_B, max_block_cols_B, stream_B);
                             CUDA_CREATE_RECORD_EVENT(B_copied, stream_B);
                         }
                         else if (strategy == parallelMul)
                         {
                             CUDA_WAIT_EVENT_DESTROY(A_can_be_overwritten, stream_A)
-                            loadcheck_block(A, dA, C_row, num_split_other_dim, block, num_split_common_dim, rows_A, cols_A, max_block_rows_A, max_block_cols_A, stream_A, 'A', without_error_check);
+                            loadcheck_input_block(OperandMatrix::A, A, dA, C_row, num_split_other_dim, block, num_split_common_dim, rows_A, cols_A, max_block_rows_A, max_block_cols_A, stream_A);
                             CUDA_CREATE_RECORD_EVENT(A_copied, stream_A);
 
                             CUDA_WAIT_EVENT_DESTROY(B_can_be_overwritten, stream_B)
-                            loadcheck_block(B, dB, block, num_split_common_dim, C_col, num_split_other_dim, ROWS_B, cols_B, MAX_BLOCK_ROWS_B, max_block_cols_B, stream_B, 'B', without_error_check);
+                            loadcheck_input_block(OperandMatrix::B, B, dB, block, num_split_common_dim, C_col, num_split_other_dim, ROWS_B, cols_B, MAX_BLOCK_ROWS_B, max_block_cols_B, stream_B);
                             CUDA_CREATE_RECORD_EVENT(B_copied, stream_B);
 
                             if (C_col + 1 < num_split_other_dim)
                             {
                                 CUDA_WAIT_EVENT_DESTROY(B_alt_can_be_overwritten, stream_B_alt)
-                                loadcheck_block(B, dB_alt, block, num_split_common_dim, C_col + 1, num_split_other_dim, ROWS_B, cols_B, MAX_BLOCK_ROWS_B, max_block_cols_B, stream_B_alt, 'B', without_error_check);
+                                loadcheck_input_block(OperandMatrix::B, B, dB_alt, block, num_split_common_dim, C_col + 1, num_split_other_dim, ROWS_B, cols_B, MAX_BLOCK_ROWS_B, max_block_cols_B, stream_B_alt);
                                 CUDA_CREATE_RECORD_EVENT(B_alt_copied, stream_B_alt);
                             }
                         }
@@ -556,11 +530,11 @@ namespace cuda
                                 }
 
                                 CUDA_WAIT_EVENT_DESTROY(A_can_be_overwritten, stream_A_alt)
-                                loadcheck_block(A, dA_alt, next_C_row, num_split_other_dim, next_block, num_split_common_dim, rows_A, cols_A, max_block_rows_A, max_block_cols_A, stream_A_alt, 'A', without_error_check);
+                                loadcheck_input_block(OperandMatrix::A, A, dA_alt, next_C_row, num_split_other_dim, next_block, num_split_common_dim, rows_A, cols_A, max_block_rows_A, max_block_cols_A, stream_A_alt);
                                 CUDA_CREATE_RECORD_EVENT(A_alt_copied, stream_A_alt);
 
                                 CUDA_WAIT_EVENT_DESTROY(B_can_be_overwritten, stream_B_alt)
-                                loadcheck_block(B, dB_alt, next_block, num_split_common_dim, next_C_col, num_split_other_dim, ROWS_B, cols_B, MAX_BLOCK_ROWS_B, max_block_cols_B, stream_B_alt, 'B', without_error_check);
+                                loadcheck_input_block(OperandMatrix::B, B, dB_alt, next_block, num_split_common_dim, next_C_col, num_split_other_dim, ROWS_B, cols_B, MAX_BLOCK_ROWS_B, max_block_cols_B, stream_B_alt);
                                 CUDA_CREATE_RECORD_EVENT(B_alt_copied, stream_B_alt);
                             }
                         }
@@ -573,7 +547,7 @@ namespace cuda
                     CUDA_WAIT_EVENT_DESTROY_IF(A_copied, stream_C, strategy != parallelMul || C_col + 1 >= num_split_other_dim)
                     CUDA_WAIT_EVENT_DESTROY(B_copied, stream_C)
 
-                    mul_inject_edc(dA, dB, dC, rows_A, cols_B, &block_rows_C_cur, &block_cols_C_cur, C_row, C_col, block, max_block_rows_A, max_block_cols_A, max_block_cols_B, stream_C, stream_Cbis, num_split_common_dim, num_split_other_dim, errors_count, per_block_error_xs[error_id], per_block_error_ys[error_id], error_values[error_id], &result_correct, &result_corrected, without_error_check);
+                    mul_inject_edc(dA, dB, dC, rows_A, cols_B, &block_rows_C_cur, &block_cols_C_cur, C_row, C_col, block, max_block_rows_A, max_block_cols_A, max_block_cols_B, stream_C, stream_Cbis, num_split_common_dim, num_split_other_dim, errors_count, per_block_error_xs[error_id], per_block_error_ys[error_id], error_values[error_id], &result_correct, &result_corrected);
 
                     if (strategy != parallelMul || C_col + 1 >= num_split_other_dim)
                         CUDA_CREATE_RECORD_EVENT(A_can_be_overwritten, stream_C);
@@ -585,7 +559,7 @@ namespace cuda
                         CUDA_WAIT_EVENT_DESTROY(B_alt_copied, stream_C_alt)
 
                         error_id = block + (C_col + 1) * num_split_common_dim + C_row * num_split_common_dim * num_split_other_dim;
-                        mul_inject_edc(dA, dB_alt, dC_alt, rows_A, cols_B, &block_rows_C_alt, &block_cols_C_alt, C_row, C_col + 1, block, max_block_rows_A, max_block_cols_A, max_block_cols_B, stream_C_alt, stream_Cbis_alt, num_split_common_dim, num_split_other_dim, errors_count, per_block_error_xs[error_id], per_block_error_ys[error_id], error_values[error_id], &result_correct_alt, &result_corrected_alt, without_error_check);
+                        mul_inject_edc(dA, dB_alt, dC_alt, rows_A, cols_B, &block_rows_C_alt, &block_cols_C_alt, C_row, C_col + 1, block, max_block_rows_A, max_block_cols_A, max_block_cols_B, stream_C_alt, stream_Cbis_alt, num_split_common_dim, num_split_other_dim, errors_count, per_block_error_xs[error_id], per_block_error_ys[error_id], error_values[error_id], &result_correct_alt, &result_corrected_alt);
 
                         CUDA_CREATE_RECORD_EVENT(A_can_be_overwritten, stream_C);
                         CUDA_CREATE_RECORD_EVENT(B_alt_can_be_overwritten, stream_C_alt);

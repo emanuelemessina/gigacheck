@@ -14,9 +14,9 @@ int main(int argc, char* argv[])
 
     cli
         .option({"h", "help", OPTION_INT_UNSET, "Help"})
-        .option({"n", "no-err-check", OPTION_BOOL_UNSET, "Use vanilla matrix multiplication (no error checking)"})
+        .option({"n", "no-edc", OPTION_BOOL_UNSET, "Use vanilla matrix multiplication, disable fault tolerance (no error detection and correction)"})
         .option({"p", "print", OPTION_BOOL_UNSET, "Print debug info (matrices, checksums, calculations), do not use with big matrices"})
-        .option({"c", "check", OPTION_BOOL_UNSET, "Check the GPU product correctness with the CPU (for debugging, do not use with big matrices)"})
+        .option({"v", "cpu-verify", OPTION_BOOL_UNSET, "Verify the GPU product correctness with the CPU (for debugging, do not use with big matrices)"})
         .option({"i", "ints", OPTION_BOOL_UNSET, "Use int values instead of floats (for visualization, still uses floats as underlying type)"})
         .option({"t", "tileside", 32, "Side of square tile blocks / Length of vector blocks"})
         .option({"m", "memory", OPTION_STRING_UNSET, "Max allowed GPU global memory (default: device max) as a human readable memsize string"})
@@ -66,8 +66,10 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-    auto vanilla = cli.get("no-err-check").getValue<bool>();
-    auto check = cli.get("check").getValue<bool>();
+    auto noEDC = cli.get("no-edc").getValue<bool>();
+    globals::noEDC = noEDC;
+
+    auto verify = cli.get("cpu-verify").getValue<bool>();
 
     auto errors = cli.get("errors").getValue<int>();
     auto collinear_errors = cli.get("collinear-errors").getValue<bool>();
@@ -76,7 +78,7 @@ int main(int argc, char* argv[])
     auto ca = cli.get("cols-a").getValue<int>();
     auto cb = cli.get("cols-b").getValue<int>();
 
-    result = programs::gigacheck(ra, ca, cb, vanilla, check, errors, collinear_errors, strategy);
+    result = programs::gigacheck(ra, ca, cb, verify, errors, collinear_errors, strategy);
 
     // end
 

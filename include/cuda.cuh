@@ -2,11 +2,38 @@
 
 #include "edc.cuh"
 #include "globals.h"
+#include "iomod.h"
+#include <stdio.h>
 #include <string>
+
+#define CUDA_CHECK                                                                       \
+    {                                                                                    \
+        cudaError_t error = cudaGetLastError();                                          \
+        if (error != cudaSuccess)                                                        \
+            CERR << RED << "CUDA Error: " << cudaGetErrorString(error) << RESET << ENDL; \
+    }
+
+#define CUDA_CREATE_RECORD_EVENT(event, stream) \
+    {                                           \
+        cudaEventCreate(&event);                \
+        cudaEventRecord(event, stream);         \
+    }
+
+#define CUDA_WAIT_EVENT_DESTROY(event, stream) \
+    {                                          \
+        cudaStreamWaitEvent(stream, event);    \
+        cudaEventDestroy(event);               \
+    }
+
+#define CUDA_WAIT_EVENT_DESTROY_IF(event, stream, destroy) \
+    {                                                      \
+        cudaStreamWaitEvent(stream, event);                \
+        if (destroy)                                       \
+            cudaEventDestroy(event);                       \
+    }
 
 namespace cuda
 {
-
     typedef enum
     {
         simple,
@@ -46,5 +73,5 @@ namespace cuda
      * @param[in]   error_values  buffer with the values of the errors
      * @param[in]   strategy      which strategy to use when matrices do not fit the GPU memory
      */
-    EDCResult matmul_ec(float* A, float* B, float* C, int rows_A, int cols_A, int cols_B, int errors_count, int** error_xs, int** error_ys, float** error_values, MulStrategy strategy, bool without_error_check);
+    EDCResult matmul_ec(float* A, float* B, float* C, int rows_A, int cols_A, int cols_B, int errors_count, int** error_xs, int** error_ys, float** error_values, MulStrategy strategy);
 };

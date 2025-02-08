@@ -16,7 +16,7 @@
 
 namespace programs
 {
-    int gigacheck(int ra, int ca, int cb, bool vanilla, bool check, int errors_count, bool collinear_errors, cuda::MulStrategy strategy)
+    int gigacheck(int ra, int ca, int cb, bool verify, int errors_count, bool collinear_errors, cuda::MulStrategy strategy)
     {
         cuda::Info info = cuda::getInfo();
 
@@ -32,8 +32,8 @@ namespace programs
         WOUT << "B: " << rb << " x " << cb << ENDL;
         WOUT << "-> C: " << rc << " x " << cc << ENDL;
         WOUT << "Values type: " << (globals::useIntValues ? "int" : "float") << ENDL;
-        WOUT << "GPU mul alg: " << (vanilla ? "vanilla" : "error corrected") << ENDL;
-        if (!vanilla)
+        WOUT << "GPU mul alg: " << (globals::noEDC ? "vanilla" : "error corrected") << ENDL;
+        if (!globals::noEDC)
             WOUT << "# errors: " << errors_count << (errors_count > 1 && collinear_errors ? "(collinear)" : "") << ENDL;
         WOUT << "Tile side: " << globals::tileSide << ENDL;
         printf("\n\n");
@@ -110,13 +110,13 @@ namespace programs
                 per_block_error_ys.push_back(error_ys);
             }
 
-            cuda::EDCResult edc_res = cuda::matmul_ec(A, B, C, ra, ca, cb, errors_count, per_block_error_xs.data(), per_block_error_ys.data(), per_block_error_values.data(), strategy, vanilla);
+            cuda::EDCResult edc_res = cuda::matmul_ec(A, B, C, ra, ca, cb, errors_count, per_block_error_xs.data(), per_block_error_ys.data(), per_block_error_values.data(), strategy);
 
             if (edc_res == cuda::UNCORRECTABLE_ERROR)
             {
                 COUT << "😐 Uncorrectable error encountered, multiplication failed." << ENDL;
                 // choice: dont' check with cpu if we already know there's an error
-                check = false;
+                verify = false;
             }
             else if (edc_res == cuda::CORRECTED_ERROR)
             {
@@ -133,10 +133,10 @@ namespace programs
 
         int result = 0;
 
-        if (check)
+        if (verify)
         {
-            ScopedTimer timer("CPU mul check", PRE);
-            result = matrix::check_product(A, B, C, ra, ca, cb);
+            ScopedTimer timer("CPU mul verify", PRE);
+            result = matrix::verify_product(A, B, C, ra, ca, cb);
         }
 
         if (globals::debugPrint)

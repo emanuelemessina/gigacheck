@@ -1,20 +1,9 @@
 #pragma once
 
+#include "ceildiv.h"
 #include "globals.h"
 
 #define tileDim dim3(globals::tileSide, globals::tileSide)
-
-#include "iomod.h"
-#include <stdio.h>
-
-#define CUDA_CHECK                                                                       \
-    {                                                                                    \
-        cudaError_t error = cudaGetLastError();                                          \
-        if (error != cudaSuccess)                                                        \
-            CERR << RED << "CUDA Error: " << cudaGetErrorString(error) << RESET << ENDL; \
-    }
-
-#define CEIL_DIV(numerator, denominator) (int)((numerator + denominator - 1) / denominator)
 
 /**
  * @brief Calculates a bank-conflict-free size in bytes for float shared memory from a dimension along an axis.

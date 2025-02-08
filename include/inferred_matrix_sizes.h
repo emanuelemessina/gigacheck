@@ -1,6 +1,4 @@
-#ifndef __INFERRED_MATRIX_SIZES_H_
-
-#define __INFERRED_MATRIX_SIZES_H_
+#pragma once
 
 // inferred dimensions for matrix multiplication (forced mathematically, defined for simplicity)
 
@@ -28,5 +26,3 @@
 #define MAX_BLOCK_ROWS_B max_block_cols_A
 #define MAX_BLOCK_ROWS_C max_block_rows_A
 #define MAX_BLOCK_COLS_C max_block_cols_B
-
-#endif
