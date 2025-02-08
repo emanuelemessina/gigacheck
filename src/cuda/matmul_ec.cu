@@ -502,7 +502,7 @@ namespace cuda
                                 CUDA_CREATE_RECORD_EVENT(B_alt_copied, stream_B_alt);
                             }
                         }
-                        else
+                        if (strategy == preloadAB || strategy == preloadAB_deferUnloadC) // preload A',B'
                         {
                             // if strategy pre-loads A and B, and this is not the last iteration, pre-load the next A, B
                             if (block != (num_split_common_dim - 1) || C_row != (num_split_other_dim - 1) || C_col != (num_split_other_dim - 1))
