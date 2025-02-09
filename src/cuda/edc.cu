@@ -1,11 +1,13 @@
 #include "edc.cuh"
 #include "kernels.cuh"
+#include "matrix.h"
 #include <iomanip>
 #include <iostream>
+#include <vector>
 
 namespace cuda
 {
-    EDCResult errors_detect_correct(const float* d_ec_matrix, int rows, int cols, float* d_cc_control, float* d_rc_control, cudaStream_t* streams)
+    EDCResult errors_detect_correct(const float* d_ec_matrix, int rows, int cols, float* d_cc_control, float* d_rc_control, cudaStream_t mainStream, cudaStream_t secondaryStream, bool* recompute_vertical_checksums, bool* recompute_horizontal_checksums)
     {
         EDCResult edc_res;
 
@@ -32,22 +34,24 @@ namespace cuda
 
         // depth-first issuing to avoid consecutive kernel scheduling blocking kernel0 signal to copy queue
 
-        kernels::find_checksum_mismatches<<<CEIL_DIV(cols + 1, tileDim.y), tileDim.y, 0, streams[0]>>>(d_ec_matrix, rows, cols, d_cc_control, COMPARE_CHECKSUM_COL, &d_mismatch_info[MISMATCH_COUNT_X], d_error_xs, &d_mismatch_info[ERROR_X]);
+        kernels::find_checksum_mismatches<<<CEIL_DIV(cols + 1, tileDim.y), tileDim.y, 0, mainStream>>>(d_ec_matrix, rows, cols, d_cc_control, ChecksumsToCompare::COL, &d_mismatch_info[MISMATCH_COUNT_X], d_error_xs, &d_mismatch_info[ERROR_X]);
 
-        cudaMemcpyAsync(mismatch_info, d_mismatch_info, 2 * sizeof(float), cudaMemcpyDeviceToHost, streams[0]);
+        cudaMemcpyAsync(mismatch_info, d_mismatch_info, 2 * sizeof(float), cudaMemcpyDeviceToHost, mainStream);
 
-        kernels::find_checksum_mismatches<<<CEIL_DIV(rows + 1, tileDim.x), tileDim.x, 0, streams[1]>>>(d_ec_matrix, rows, cols, d_rc_control, COMPARE_CHECKSUM_ROW, &d_mismatch_info[MISMATCH_COUNT_Y], d_error_ys, &d_mismatch_info[ERROR_Y]);
+        kernels::find_checksum_mismatches<<<CEIL_DIV(rows + 1, tileDim.x), tileDim.x, 0, secondaryStream>>>(d_ec_matrix, rows, cols, d_rc_control, ChecksumsToCompare::ROW, &d_mismatch_info[MISMATCH_COUNT_Y], d_error_ys, &d_mismatch_info[ERROR_Y]);
 
-        cudaMemcpyAsync(mismatch_info + 2, d_mismatch_info + 2, 2 * sizeof(float), cudaMemcpyDeviceToHost, streams[1]);
+        cudaMemcpyAsync(mismatch_info + 2, d_mismatch_info + 2, 2 * sizeof(float), cudaMemcpyDeviceToHost, secondaryStream);
 
-        cudaDeviceSynchronize();
+        cudaStreamSynchronize(mainStream);
+        cudaStreamSynchronize(secondaryStream);
         CUDA_CHECK
 
-#define AXIS_X REDUCE_ALONG_COL
-#define AXIS_Y REDUCE_ALONG_ROW
+#define AXIS_X ReductionDirection::ALONG_COL
+#define AXIS_Y ReductionDirection::ALONG_ROW
 
-        int collinear_axis = mismatch_info[MISMATCH_COUNT_X] == 1 ? AXIS_Y : AXIS_X; // only 1 mismatch found in x implies the collinear axis must be y and viceversa
+        ReductionDirection collinear_axis = mismatch_info[MISMATCH_COUNT_X] == 1 ? AXIS_Y : AXIS_X; // only 1 mismatch found in x implies the collinear axis must be y and viceversa
         int num_errors = mismatch_info[MISMATCH_COUNT_X] == 1 ? mismatch_info[MISMATCH_COUNT_Y] : mismatch_info[MISMATCH_COUNT_X];
+        int non_discarded = 0;
 
         if ((mismatch_info[MISMATCH_COUNT_X] | mismatch_info[MISMATCH_COUNT_Y]) == 0)
         {
@@ -76,72 +80,88 @@ namespace cuda
         // overwrite d_ec_matrix with corrected vals
 
         // copy mismatch coords to host
-        cudaMemcpyAsync(error_xs, d_error_xs, num_errors * sizeof(float), cudaMemcpyDeviceToHost, streams[0]);
-        cudaMemcpyAsync(error_ys, d_error_ys, num_errors * sizeof(float), cudaMemcpyDeviceToHost, streams[1]);
+        cudaMemcpyAsync(error_xs, d_error_xs, num_errors * sizeof(float), cudaMemcpyDeviceToHost, mainStream);
+        cudaMemcpyAsync(error_ys, d_error_ys, num_errors * sizeof(float), cudaMemcpyDeviceToHost, mainStream);
 
-        // allocate correction checksums
-
+        // allocate host correction checksums
         float* correction_checksums;
         cudaMallocHost(&correction_checksums, num_errors * sizeof(float));
 
-        // allocate host correction values
-        float* h_edc_vals;
-        cudaMallocHost(&h_edc_vals, num_errors * sizeof(float));
+        // allocate host control checksums
+        float* control_checksums;
+        cudaMallocHost(&control_checksums, num_errors * sizeof(float));
 
-        // allocate device one-off sums
-        float* d_correction_sum;
-        cudaMalloc(&d_correction_sum, num_errors * sizeof(float));
+        // allocate host error values
+        float* error_values;
+        cudaMallocHost(&error_values, num_errors * sizeof(float));
 
-        cudaDeviceSynchronize();
+        // allocate host corrected values
+        float* corrected_vals;
+        cudaMallocHost(&corrected_vals, num_errors * sizeof(float));
+
         CUDA_CHECK
 
         for (int i = 0; i < num_errors; ++i)
         {
-            int streamId = i % globals::numStreams;
-
             // correct collinear coords (one kernel found only 1 mismatch, need to duplicate the single coord)
             if (collinear_axis == AXIS_X) // only 1 y
                 error_ys[i] = error_ys[0];
             else // only 1 x
                 error_xs[i] = error_xs[0];
 
-            // one-off sum on opposite axis of the collinear one
+            // discard errors on checksum vectors
+            if (error_xs[i] == cols)
+            {
+                *recompute_horizontal_checksums = true;
+                continue;
+            }
 
-            int exclude_index = collinear_axis == AXIS_X ? error_ys[i] : error_xs[i];
-            int sum_axis_index = collinear_axis == AXIS_X ? error_xs[i] : error_ys[i];
+            if (error_ys[i] == rows)
+            {
+                *recompute_vertical_checksums = true;
+                continue;
+            }
 
-            kernels::sum_axis_except<<<1, tileDim.x, linearDimToBytes(tileDim.x), streams[streamId]>>>(d_ec_matrix, rows, cols, collinear_axis, sum_axis_index, exclude_index, (float*)(d_correction_sum + i));
-
-            cudaMemcpyAsync(h_edc_vals + i, d_correction_sum + i, sizeof(float), cudaMemcpyDeviceToHost, streams[streamId]);
+            non_discarded++;
 
             // calculate correction
 
-            cudaMemcpyAsync(correction_checksums + i, (collinear_axis == AXIS_X ? d_ec_matrix + rows * (cols + 1) + error_xs[i] : d_ec_matrix + error_ys[i] * (cols + 1) + cols), sizeof(float), cudaMemcpyDeviceToHost, streams[streamId]);
-            cudaStreamSynchronize(streams[streamId]);
+            // copy correction checksum
+            cudaMemcpyAsync(correction_checksums + i, (collinear_axis == AXIS_X ? d_ec_matrix + rows * (cols + 1) + error_xs[i] : d_ec_matrix + error_ys[i] * (cols + 1) + cols), sizeof(float), cudaMemcpyDeviceToHost, mainStream);
+            // copy control checksum
+            cudaMemcpyAsync(control_checksums + i, (collinear_axis == AXIS_X ? d_cc_control + error_xs[i] : d_rc_control + error_ys[i]), sizeof(float), cudaMemcpyDeviceToHost, mainStream);
+            // copy error value
+            cudaMemcpyAsync(error_values + i, (void*)(d_ec_matrix + error_ys[i] * (cols + 1) + error_xs[i]), sizeof(float), cudaMemcpyDeviceToHost, mainStream);
+
+            cudaStreamSynchronize(mainStream);
             CUDA_CHECK
 
-            h_edc_vals[i] = correction_checksums[i] - h_edc_vals[i];
+            corrected_vals[i] = correction_checksums[i] - control_checksums[i] + error_values[i];
 
             // write correction
-            cudaMemcpyAsync((void*)(d_ec_matrix + error_ys[i] * (cols + 1) + error_xs[i]), h_edc_vals + i, sizeof(float), cudaMemcpyHostToDevice, streams[streamId]);
+            cudaMemcpyAsync((void*)(d_ec_matrix + error_ys[i] * (cols + 1) + error_xs[i]), corrected_vals + i, sizeof(float), cudaMemcpyHostToDevice, mainStream);
 
             if (globals::debugPrint)
             {
                 printf("Found correctable error @ C(%d, %d):\n", error_ys[i] + 1, error_xs[i] + 1); // math notation (row, col)
                 COUT << "  mul " << (collinear_axis == AXIS_X ? "col ↓" : "row →") << " checksum = " << FMT_FLOAT(correction_checksums[i]) << ENDL;
-                COUT << "  corrected value = " << h_edc_vals[i] << ENDL;
+                COUT << "  corrected value = " << corrected_vals[i] << ENDL;
             }
         }
 
-        cudaDeviceSynchronize();
+        cudaStreamSynchronize(mainStream);
 
         CUDA_CHECK
 
-        cudaFree(d_correction_sum);
-        cudaFreeHost(h_edc_vals);
+        cudaFreeHost(corrected_vals);
         cudaFreeHost(correction_checksums);
+        cudaFreeHost(error_values);
+        cudaFreeHost(control_checksums);
 
         CUDA_CHECK
+
+        if (non_discarded == 0)
+            edc_res = NO_ERROR;
 
     cleanup:
 

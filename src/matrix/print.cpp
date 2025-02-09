@@ -1,3 +1,4 @@
+#include "cuda.cuh"
 #include "iomod.h"
 #include "matrix.h"
 #include <algorithm>
@@ -5,6 +6,16 @@
 
 void matrix::print(float* mat, int rows, int cols, std::string&& name, int flags, int* highlight_xs, int* highlight_ys, int highlight_count)
 {
+    if (flags & IS_DEVICE_MAT)
+    {
+        float* mat_host = matrix::alloc(rows, cols, false);
+        cudaMemcpy(mat_host, mat, rows * cols * sizeof(float), cudaMemcpyDeviceToHost);
+        matrix::print(mat_host, rows, cols, name.c_str(), flags & ~IS_DEVICE_MAT, highlight_xs, highlight_ys, highlight_count);
+        free(mat_host);
+        CUDA_CHECK
+        return;
+    }
+
     if (!name.empty())
         printf("%s:\n", name.c_str());
 
@@ -22,8 +33,6 @@ void matrix::print(float* mat, int rows, int cols, std::string&& name, int flags
 
     for (int r = 0; r < rows; r++)
     {
-        bool highlight_row_match = highlight_cursor != highlights.cend() && r == (*highlight_cursor).first;
-
         for (int c = 0; c < cols; c++)
         {
             if (flags & HIGHLIGHT_LAST_ROW && r == rows - 1)
@@ -31,6 +40,8 @@ void matrix::print(float* mat, int rows, int cols, std::string&& name, int flags
 
             if (flags & HIGHLIGHT_LAST_COL && c == cols - 1)
                 COUT << MAGENTA;
+
+            bool highlight_row_match = highlight_cursor != highlights.cend() && r == (*highlight_cursor).first;
 
             if (highlight_row_match && c == (*highlight_cursor).second)
             {

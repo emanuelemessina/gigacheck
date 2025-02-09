@@ -91,12 +91,12 @@ __device__ float getMatrixElement(float* matrix, int mat_rows, int mat_cols, int
  *
  * @return true if the element was set, false if the element is outside the matrix
  */
-__device__ bool setMatrixElement(float* matrix, int mat_rows, size_t mat_cols, int tile_size, int tile_idy, int tile_idx, int el_row, int el_col, float val)
+__device__ bool sumMatrixElement(float* matrix, int mat_rows, size_t mat_cols, int tile_size, int tile_idy, int tile_idx, int el_row, int el_col, float val)
 {
     int idx = getMatrixLinearIndex(mat_rows, mat_cols, tile_size, tile_idy, tile_idx, el_row, el_col);
     if (idx == -1)
         return false;
-    matrix[idx] = val;
+    matrix[idx] += val;
     return true;
 }
 
@@ -145,5 +145,5 @@ __global__ void kernels::tiled_matmul(float* A, float* B, float* C, int rows_A, 
     }
 
     // this thread will write his result into C, other threads will do the same for their positions
-    setMatrixElement(C, ROWS_C, COLS_C, TILESIDE, TILE_IDY, TILE_IDX, TH_ROW, TH_COL, res);
+    sumMatrixElement(C, ROWS_C, COLS_C, TILESIDE, TILE_IDY, TILE_IDX, TH_ROW, TH_COL, res);
 }
