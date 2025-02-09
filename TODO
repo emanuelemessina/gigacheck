@@ -1,9 +1,5 @@
 By priority:
 
-- async copy while computing buffering schemes:
-    - AB->C (default)
-    - AB->C // A'B' (double buffering)
-    - AB->C // A'B'->C' (parallel computation)
 - profile everything
 - can further optimize block sizes, memory... ?
 
@@ -14,13 +10,3 @@ Paper:
 - our orchestration of the kernels and buffers
 - the safe mm operation (how do we use the checksum, how do we correct/detect errors)
 - results (profiling) 
-
-If there is time:
-
-- strassen matrix multiplication
-
-There will be no time:
-
-- use tensor cores (cublas) when available
-https://developer.nvidia.com/blog/programming-tensor-cores-cuda-9/
-- split into gpus
