@@ -2,7 +2,6 @@ By priority:
 
 - profile everything
 - can further optimize block sizes, memory... ?
-- improve timers that are now not so good for split matrices
 
 Paper:
 
@@ -11,13 +10,3 @@ Paper:
 - our orchestration of the kernels and buffers
 - the safe mm operation (how do we use the checksum, how do we correct/detect errors)
 - results (profiling) 
-
-If there is time:
-
-- strassen matrix multiplication
-
-There will be no time:
-
-- use tensor cores (cublas) when available
-https://developer.nvidia.com/blog/programming-tensor-cores-cuda-9/
-- split into gpus
