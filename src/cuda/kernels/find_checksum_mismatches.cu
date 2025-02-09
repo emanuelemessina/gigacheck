@@ -1,18 +1,19 @@
 #include "edc.cuh"
 #include "kernels.cuh"
 #include <stdio.h>
-__global__ void kernels::find_checksum_mismatches(const float* ec_matrix, int rows, int cols, float* control_checksum, int comparison_flag, int* mismatch_count, int* mismatch_indexes, int* error_flag)
+
+__global__ void kernels::find_checksum_mismatches(const float* ec_matrix, int rows, int cols, float* control_checksum, ChecksumsToCompare checksums_to_compare, int* mismatch_count, int* mismatch_indexes, int* error_flag)
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    int limit = comparison_flag == COMPARE_CHECKSUM_ROW ? cols + 1 : rows + 1; // also verify checksums themselves
+    int limit = checksums_to_compare == ChecksumsToCompare::ROW ? rows + 1 : cols + 1; // also verify checksums themselves
 
     if (idx >= limit || *error_flag)
         return;
 
-    float mat_checksum_item = comparison_flag == COMPARE_CHECKSUM_ROW ? ec_matrix[idx * (cols + 1) + cols] : ec_matrix[rows * (cols + 1) + idx];
+    float mat_checksum_item = checksums_to_compare == ChecksumsToCompare::ROW ? ec_matrix[idx * (cols + 1) + cols] : ec_matrix[rows * (cols + 1) + idx];
     float control_checksum_item = control_checksum[idx];
 
-    if (mat_checksum_item != control_checksum_item)
+    if (ABS(mat_checksum_item - control_checksum_item) > 0.0001 * mat_checksum_item)
     {
         // atomically update the mismatch count
         int mismatch_idx = atomicAdd(mismatch_count, 1);

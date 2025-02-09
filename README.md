@@ -1,2 +1,2 @@
 # gigacheck
- Configurable ABFT Strassen Matrix Multiplication in CUDA 
+ ABFT Matrix Multiplication in CUDA 
