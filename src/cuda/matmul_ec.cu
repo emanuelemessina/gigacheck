@@ -211,7 +211,28 @@ namespace cuda
      * @param[out]  result_corrected      Whether the matrix had errors, but all errors were corrected
      *
      */
-    void mul_inject_edc(float* A, float* B, float* C, int rows_A, int cols_B, int num_split_common_dim, int num_split_other_dim, int max_block_rows_A, int max_block_cols_A, int max_block_cols_B, int C_block_idy, int C_block_idx, int* block_rows_C_cur, int* block_cols_C_cur, cudaStream_t stream, cudaStream_t streamBis, int errors_count, int* error_xs, int* error_ys, float* error_values, bool* result_correct, bool* result_corrected)
+    void mul_inject_edc(float* A,
+                        float* B,
+                        float* C,
+                        int rows_A,
+                        int cols_B,
+                        int num_split_common_dim,
+                        int num_split_other_dim,
+                        int max_block_rows_A,
+                        int max_block_cols_A,
+                        int max_block_cols_B,
+                        int C_block_idy,
+                        int C_block_idx,
+                        int* block_rows_C_cur,
+                        int* block_cols_C_cur,
+                        cudaStream_t stream,
+                        cudaStream_t streamBis,
+                        int errors_count,
+                        int* error_xs,
+                        int* error_ys,
+                        float* error_values,
+                        bool* result_correct,
+                        bool* result_corrected)
     {
         int extra = globals::noEDC ? 0 : 1;
 
@@ -227,8 +248,6 @@ namespace cuda
         // compute the actual matrix multiplication as usual
 
         {
-            ScopedTimer timer("tiled matmul", POST);
-
             dim3 gridDim = dim3(CEIL_DIV(MAX_BLOCK_COLS_C + extra, tileDim.x), CEIL_DIV(MAX_BLOCK_ROWS_C + extra, tileDim.y));
             int sharedMemSize = 2 * dim2ToBytes(tileDim);
             kernels::tiled_matmul<<<gridDim, tileDim, sharedMemSize, stream>>>(A, B, C, max_block_rows_A + extra, max_block_cols_A, max_block_cols_B + extra);
@@ -252,8 +271,6 @@ namespace cuda
 
         // introduce errors in dC
         {
-            ScopedTimer timer("introduce error(s)", POST);
-
             for (int i = 0; i < errors_count; i++)
             {
                 float tmp;
@@ -272,8 +289,6 @@ namespace cuda
 
         // compute control checksums after mul
         {
-            ScopedTimer timer("compute control checksums", POST);
-
             // compute col control checksum
             compute_control_checksums(C, ReductionDirection::ALONG_COL, max_block_cols_B, max_block_rows_A, stream, d_cc_control);
 
@@ -295,8 +310,6 @@ namespace cuda
         // edc
 
         {
-            ScopedTimer timer("error detection (+ correction)", POST);
-
             bool recompute_vertical_checksums = false;
             bool recompute_horizontal_checksums = false;
 
@@ -339,7 +352,7 @@ namespace cuda
 
         if (!matrix::calc_splits(strategy, rows_A, cols_A, cols_B, &num_split_common_dim, &num_split_other_dim))
         {
-            std::cerr << "Not enough device memory to store the checksums, aborting." << std::endl;
+            CERR << "Not enough device memory to store the checksums, aborting." << ENDL;
             return NO_ERROR;
         }
 
@@ -481,7 +494,6 @@ namespace cuda
                     */
 
                     {
-                        ScopedTimer timer("A,B to device + compute input checksums", POST);
                         if (strategy == simple || strategy == parallelMul) // load the base blocks A,B
                         {
                             CUDA_WAIT_EVENT_DESTROY(A_can_be_overwritten, stream_A)
@@ -535,15 +547,19 @@ namespace cuda
 
                     int block_id = block_common_id + C_block_idx * num_split_common_dim + C_block_idy * num_split_common_dim * num_split_other_dim;
 
+                    // Wait for operands to be loaded
                     CUDA_WAIT_EVENT_DESTROY_IF(A_copied, stream_C, strategy != parallelMul || C_block_idx + 1 >= num_split_other_dim)
                     CUDA_WAIT_EVENT_DESTROY(B_copied, stream_C)
 
+                    // Compute product
                     mul_inject_edc(dA, dB, dC, rows_A, cols_B, num_split_common_dim, num_split_other_dim, max_block_rows_A, max_block_cols_A, max_block_cols_B, C_block_idy, C_block_idx, &block_rows_C_cur, &block_cols_C_cur, stream_C, stream_Cbis, errors_count, per_block_error_xs[block_id], per_block_error_ys[block_id], error_values[block_id], &result_correct, &result_corrected);
 
+                    // Notify that A and B are no longer needed, and as such they can be overwritten
                     if (strategy != parallelMul || C_block_idx + 1 >= num_split_other_dim)
                         CUDA_CREATE_RECORD_EVENT(A_can_be_overwritten, stream_C);
                     CUDA_CREATE_RECORD_EVENT(B_can_be_overwritten, stream_C);
 
+                    // If parallel multiplication, and C' is meaningful, compute the other product
                     if (strategy == parallelMul && C_block_idx + 1 < num_split_other_dim)
                     {
                         CUDA_WAIT_EVENT_DESTROY(A_copied, stream_C_alt)
@@ -556,6 +572,7 @@ namespace cuda
                         CUDA_CREATE_RECORD_EVENT(B_alt_can_be_overwritten, stream_C_alt);
                     }
 
+                    // Switch A and B buffers if required
                     switch (strategy)
                     {
                         case preloadAB_deferUnloadC:
@@ -574,8 +591,6 @@ namespace cuda
                 // (send two blocks in case of parallel mul)
 
                 {
-                    ScopedTimer timer("C to host", POST);
-
                     int offset = C_block_idy * MAX_BLOCK_ROWS_C * COLS_C + C_block_idx * MAX_BLOCK_COLS_C;
                     int offset2 = C_block_idy * MAX_BLOCK_ROWS_C * COLS_C + (C_block_idx + 1) * MAX_BLOCK_COLS_C; // for parallel mul
 

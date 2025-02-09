@@ -25,7 +25,27 @@ namespace programs
         printf("GIGACHECK\n");
         printf("=========\n\n");
 
-#define WOUT (COUT << std::setw(18))
+#define WOUT (COUT << std::setw(25))
+
+        std::string strategyName;
+        switch (strategy)
+        {
+            case cuda::MulStrategy::simple:
+                strategyName = "simple, no buffering";
+                break;
+
+            case cuda::MulStrategy::preloadAB:
+                strategyName = "pre-loading A and B, while computing the previous product";
+                break;
+
+            case cuda::MulStrategy::preloadAB_deferUnloadC:
+                strategyName = "pre-loading A and B, defer unloading C while computing the previous/next product";
+                break;
+
+            case cuda::MulStrategy::parallelMul:
+                strategyName = "two multiplications at the same time";
+                break;
+        }
 
         COUT << BOLD << "Params:" << RESET << ENDL;
         WOUT << "A: " << ra << " x " << ca << ENDL;
@@ -33,9 +53,11 @@ namespace programs
         WOUT << "-> C: " << rc << " x " << cc << ENDL;
         WOUT << "Values type: " << (globals::useIntValues ? "int" : "float") << ENDL;
         WOUT << "GPU mul alg: " << (globals::noEDC ? "vanilla" : "error corrected") << ENDL;
+        WOUT << "Host memory required: " << humanReadableMemSize((globals::useIntValues ? sizeof(int) : sizeof(float)) * (ra * ca + rb * cb + rc * cc)) << ENDL;
         if (!globals::noEDC)
-            WOUT << "# errors: " << errors_count << (errors_count > 1 && collinear_errors ? "(collinear)" : "") << ENDL;
+            WOUT << "# errors: " << errors_count << (errors_count > 1 && collinear_errors ? " (collinear)" : "") << ENDL;
         WOUT << "Tile side: " << globals::tileSide << ENDL;
+        WOUT << "Strategy: " << strategy + 1 << " (" << strategyName << ")" << ENDL;
         printf("\n\n");
 
         COUT << BOLD << "Device info:" << RESET << ENDL;
@@ -55,7 +77,7 @@ namespace programs
         }
 
         {
-            ScopedTimer timer("GPU mul", PRE);
+            ScopedTimer timer("GPU mul", POST);
 
             int splits_square, splits;
             matrix::calc_splits(strategy, ra, ca, cb, &splits, &splits_square);
@@ -135,7 +157,7 @@ namespace programs
 
         if (verify)
         {
-            ScopedTimer timer("CPU mul verify", PRE);
+            ScopedTimer timer("CPU mul verify", POST);
             result = matrix::verify_product(A, B, C, ra, ca, cb);
         }
 

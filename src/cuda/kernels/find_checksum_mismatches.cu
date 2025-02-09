@@ -13,7 +13,7 @@ __global__ void kernels::find_checksum_mismatches(const float* ec_matrix, int ro
     float mat_checksum_item = checksums_to_compare == ChecksumsToCompare::ROW ? ec_matrix[idx * (cols + 1) + cols] : ec_matrix[rows * (cols + 1) + idx];
     float control_checksum_item = control_checksum[idx];
 
-    if (mat_checksum_item != control_checksum_item)
+    if (ABS(mat_checksum_item - control_checksum_item) > 0.0001 * mat_checksum_item)
     {
         // atomically update the mismatch count
         int mismatch_idx = atomicAdd(mismatch_count, 1);

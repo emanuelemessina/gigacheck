@@ -1,7 +1,7 @@
 #pragma once
 
-#include "ceildiv.h"
 #include "globals.h"
+#include "mathdef.h"
 
 #define tileDim dim3(globals::tileSide, globals::tileSide)
 
