@@ -11,7 +11,7 @@ bool matrix::verify_product(float* A, float* B, float* C, int ra, int ca, int cb
             for (int k = 0; k < ca; k++)
                 val += A[r * ca + k] * B[c + k * cb];
 
-            if (ABS(C[c + cb * r] - val) > 0.01 * val)
+            if (abs(C[c + cb * r] - val) > 0.0001 * val)
             {
                 CERR << RED;
                 fprintf(stderr, "❌ Check failed @ (%d, %d): got ", r + 1, c + 1);

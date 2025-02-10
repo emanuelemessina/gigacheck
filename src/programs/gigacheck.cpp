@@ -80,7 +80,11 @@ namespace programs
             ScopedTimer timer("GPU mul", POST);
 
             int splits_square, splits;
-            matrix::calc_splits(strategy, ra, ca, cb, &splits, &splits_square);
+            if (!matrix::calc_splits(strategy, ra, ca, cb, &splits, &splits_square))
+            {
+                CERR << RED << "Not enough device memory to store the checksums, aborting." << ENDL;
+                return 1;
+            }
 
             const int total_blocks = splits * splits_square * splits_square;
             const int limit_x = CEIL_DIV(cc, splits_square) + 1;
@@ -114,10 +118,7 @@ namespace programs
                         if (error_points.insert(point).second)
                         {
                             float val;
-                            do
-                            {
-                                val = random_float(globals::useIntValues);
-                            } while (globals::useIntValues && std::find(error_values, error_values + error_points.size(), val) != error_values + error_points.size()); // avoid same val if using ints (debug)
+                            val = random_float(globals::useIntValues);
 
                             int idx = error_points.size() - 1;
                             error_xs[idx] = x;

@@ -46,6 +46,6 @@
             },
             "problemMatcher": [],
             "detail": "Run make clean to remove built objects"
-        }
+        },
     ]
 }

@@ -5,6 +5,7 @@
 #include "kernels.cuh"
 #include "matrix.h"
 #include "timer.h"
+#include <vector>
 
 #define SWAP(a, b)    \
     {                 \
@@ -133,7 +134,7 @@ void loadcheck_input_block(OperandMatrix operand, float* h_mat, float* d_mat, in
 
         if (!globals::noEDC)
         {
-            name += "(w/";
+            name += " (w/ ";
             name += operand == OperandMatrix::A ? "column" : "row";
             name += " checksum)";
 
@@ -234,6 +235,11 @@ namespace cuda
                         bool* result_correct,
                         bool* result_corrected)
     {
+        if (globals::debugPrint)
+        {
+            matrix::print(C, MAX_BLOCK_ROWS_C + 1, MAX_BLOCK_COLS_C + 1, "C (pre mul)", HIGHLIGHT_LAST_ROW_AND_COL | IS_DEVICE_MAT);
+        }
+
         int extra = globals::noEDC ? 0 : 1;
 
         // rows, cols for dC
@@ -255,12 +261,14 @@ namespace cuda
             CUDA_CHECK
         }
 
-        if (globals::noEDC)
+        if (globals::debugPrint)
         {
-            if (globals::debugPrint)
-                matrix::print(C, MAX_BLOCK_ROWS_C + extra, MAX_BLOCK_COLS_C, "C", IS_DEVICE_MAT);
-            return;
+            cudaStreamSynchronize(stream);
+            matrix::print(C, MAX_BLOCK_ROWS_C + 1, MAX_BLOCK_COLS_C + 1, "C", HIGHLIGHT_LAST_ROW_AND_COL | IS_DEVICE_MAT);
         }
+
+        if (globals::noEDC)
+            return;
 
         float *d_cc_control, *d_rc_control;
         cudaMalloc(&d_cc_control, (MAX_BLOCK_COLS_C + 1) * sizeof(float));
@@ -274,9 +282,11 @@ namespace cuda
             for (int i = 0; i < errors_count; i++)
             {
                 float tmp;
-                cudaMemcpy(&tmp, C + error_ys[i] * (MAX_BLOCK_COLS_C + 1) + error_xs[i], sizeof(float), cudaMemcpyDeviceToHost);
+                cudaMemcpyAsync(&tmp, C + error_ys[i] * (MAX_BLOCK_COLS_C + 1) + error_xs[i], sizeof(float), cudaMemcpyDeviceToHost, stream);
+                cudaStreamSynchronize(stream);
                 tmp += error_values[i];
-                cudaMemcpy(C + error_ys[i] * (MAX_BLOCK_COLS_C + 1) + error_xs[i], &tmp, sizeof(float), cudaMemcpyHostToDevice);
+                cudaMemcpyAsync(C + error_ys[i] * (MAX_BLOCK_COLS_C + 1) + error_xs[i], &tmp, sizeof(float), cudaMemcpyHostToDevice, stream);
+                cudaStreamSynchronize(stream);
             }
             cudaEventRecord(C_err_added, stream);
 
@@ -285,7 +295,10 @@ namespace cuda
 
         // print dC (with mul checksums)
         if (globals::debugPrint)
-            matrix::print(C, MAX_BLOCK_ROWS_C + 1, MAX_BLOCK_COLS_C + 1, "C (w/ column checksum)", HIGHLIGHT_LAST_ROW_AND_COL | IS_DEVICE_MAT, error_xs, error_ys, errors_count);
+        {
+            cudaStreamSynchronize(stream);
+            matrix::print(C, MAX_BLOCK_ROWS_C + 1, MAX_BLOCK_COLS_C + 1, "C (w/ errors)", HIGHLIGHT_LAST_ROW_AND_COL | IS_DEVICE_MAT, error_xs, error_ys, errors_count);
+        }
 
         // compute control checksums after mul
         {
@@ -302,6 +315,8 @@ namespace cuda
         // print control checksums
         if (globals::debugPrint)
         {
+            cudaStreamSynchronize(stream);
+            cudaStreamSynchronize(streamBis);
             std::vector<int> zeros(errors_count, 0);
             matrix::print(d_rc_control, MAX_BLOCK_ROWS_C + 1, 1, "C control row checksum", HIGHLIGHT_LAST_COL | IS_DEVICE_MAT, zeros.data(), error_ys, errors_count);
             matrix::print(d_cc_control, 1, MAX_BLOCK_COLS_C + 1, "C control column checksum", HIGHLIGHT_LAST_ROW | IS_DEVICE_MAT, error_xs, zeros.data(), errors_count);

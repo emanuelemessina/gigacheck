@@ -41,6 +41,11 @@ void matrix::print(float* mat, int rows, int cols, std::string&& name, int flags
             if (flags & HIGHLIGHT_LAST_COL && c == cols - 1)
                 COUT << MAGENTA;
 
+            while (highlight_cursor != highlights.cend() && r > (*highlight_cursor).first)
+            {
+                highlight_cursor++; // advance cursor for row-collinear errors
+            }
+
             bool highlight_row_match = highlight_cursor != highlights.cend() && r == (*highlight_cursor).first;
 
             if (highlight_row_match && c == (*highlight_cursor).second)

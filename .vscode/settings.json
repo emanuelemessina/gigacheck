@@ -89,5 +89,6 @@
         "iomanip": "cpp",
         "*.inc": "cpp",
         "__config": "cpp"
-    }
+    },
+    "cmake.cacheInit": null
 }

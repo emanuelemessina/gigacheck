@@ -17,6 +17,8 @@ namespace cuda
         int *d_error_xs, *d_error_ys;
         cudaMalloc(&d_error_xs, EDC_MAX_ERRORS * sizeof(int));
         cudaMalloc(&d_error_ys, EDC_MAX_ERRORS * sizeof(int));
+        cudaMemset(d_error_xs, 0, EDC_MAX_ERRORS * sizeof(int));
+        cudaMemset(d_error_ys, 0, EDC_MAX_ERRORS * sizeof(int));
 
         // mismatch info array to avoid multiple allocs and copies
         int* mismatch_info;
@@ -49,8 +51,8 @@ namespace cuda
 #define AXIS_X ReductionDirection::ALONG_COL
 #define AXIS_Y ReductionDirection::ALONG_ROW
 
-        ReductionDirection collinear_axis = mismatch_info[MISMATCH_COUNT_X] == 1 ? AXIS_Y : AXIS_X; // only 1 mismatch found in x implies the collinear axis must be y and viceversa
-        int num_errors = mismatch_info[MISMATCH_COUNT_X] == 1 ? mismatch_info[MISMATCH_COUNT_Y] : mismatch_info[MISMATCH_COUNT_X];
+        ReductionDirection collinear_axis = mismatch_info[MISMATCH_COUNT_X] <= 1 ? AXIS_Y : AXIS_X; // only 1 (or 0 in case of collinear checksum corruption) mismatch found in x implies the collinear axis must be y and viceversa
+        int num_errors = mismatch_info[MISMATCH_COUNT_X] <= 1 ? mismatch_info[MISMATCH_COUNT_Y] : mismatch_info[MISMATCH_COUNT_X];
         int non_discarded = 0;
 
         if ((mismatch_info[MISMATCH_COUNT_X] | mismatch_info[MISMATCH_COUNT_Y]) == 0)
@@ -64,10 +66,14 @@ namespace cuda
         {
             // kernel error (more errors than max allowed)
             edc_res = UNCORRECTABLE_ERROR;
+            if (globals::debugPrint)
+            {
+                COUT << "Kernel error flag raised: (x " << mismatch_info[ERROR_Y] << ", y " << mismatch_info[ERROR_X] << ") mismatches found (max allowed per axis" << EDC_MAX_ERRORS << ")" << ENDL;
+            }
             goto cleanup;
         }
 
-        if ((mismatch_info[MISMATCH_COUNT_X] >> 1 & mismatch_info[MISMATCH_COUNT_Y] >> 1) != 0)
+        if ((mismatch_info[MISMATCH_COUNT_X] >> 1 & mismatch_info[MISMATCH_COUNT_Y] >> 1) != 0) // one of these must be 1 (shifted right becomes 0) -> collinear axis exists
         {
             // non collinear errors, can't correct
             edc_res = UNCORRECTABLE_ERROR;
@@ -99,6 +105,7 @@ namespace cuda
         float* corrected_vals;
         cudaMallocHost(&corrected_vals, num_errors * sizeof(float));
 
+        cudaStreamSynchronize(mainStream);
         CUDA_CHECK
 
         for (int i = 0; i < num_errors; ++i)
