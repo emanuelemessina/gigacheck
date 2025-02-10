@@ -72,7 +72,7 @@ enum TimerPrintMode
 class ScopedTimer
 {
   public:
-    ScopedTimer(const std::string&& blockName, TimerPrintMode mode) : name(blockName), mode(mode)
+    ScopedTimer(const std::string&& blockName, TimerPrintMode mode, long* nanoseconds_out = nullptr) : name(blockName), mode(mode), nanoseconds_out(nanoseconds_out)
     {
         start();
 
@@ -107,6 +107,8 @@ class ScopedTimer
             COUT << "\n";
 
         COUT << ENDL;
+
+        *nanoseconds_out = nanoseconds;
     }
 
   private:
@@ -149,4 +151,5 @@ class ScopedTimer
     cudaEvent_t e_start, e_stop;
     cudaStream_t* stream_ptr = nullptr;
     AggregatedTimer* aggregatedTimer = nullptr;
+    long* nanoseconds_out = nullptr;
 };

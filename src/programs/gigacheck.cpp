@@ -76,8 +76,13 @@ namespace programs
             matrix::print(B, rb, cb, "B");
         }
 
+        long nanoseconds = 0;
+
         {
-            ScopedTimer timer("GPU mul", POST);
+            ScopedTimer timer("GPU mul", POST, &nanoseconds);
+
+            if (globals::noEDC) // skip error generation
+                errors_count = 0;
 
             int splits_square, splits;
             if (!matrix::calc_splits(strategy, ra, ca, cb, &splits, &splits_square))
@@ -152,6 +157,16 @@ namespace programs
                 free(per_block_error_xs[i]);
                 free(per_block_error_ys[i]);
             }
+        }
+
+        // calculate performance metrics
+
+        {
+            // performance = flops/time
+            float gigaflops = globals::profiling::flop_counter / (uint64_t)(1000 ^ 3);
+            float seconds = nanoseconds / (uint64_t)(1000 ^ 3);
+            float performance = gigaflops / seconds;
+            COUT << BOLD << "Total program performance: " << RESET << performance << " GFLOPs/s" << ENDL;
         }
 
         int result = 0;
