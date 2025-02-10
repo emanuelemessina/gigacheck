@@ -162,6 +162,8 @@ namespace programs
         // calculate performance metrics
 
         {
+            printf("Tot flops: %lu\nTot transfer: %lu\n", globals::profiling::flop_counter, globals::profiling::transfer_counter);
+
             // performance = flops/time
             float gigaflops = globals::profiling::flop_counter / (uint64_t)(1000 ^ 3);
             float seconds = nanoseconds / (uint64_t)(1000 ^ 3);

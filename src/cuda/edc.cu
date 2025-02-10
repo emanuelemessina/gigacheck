@@ -5,6 +5,8 @@
 #include <iostream>
 #include <vector>
 
+#include "my.h"
+
 #define CUDA_DEBUG_PRINT 0
 
 namespace cuda
@@ -43,7 +45,11 @@ namespace cuda
             int blockDim = tileDim.y;
             kernels::find_checksum_mismatches<<<gridDim, blockDim, 0, mainStream>>>(d_ec_matrix, rows, cols, d_cc_control, ChecksumsToCompare::COL, &d_mismatch_info[MISMATCH_COUNT_X], d_error_xs, &d_mismatch_info[ERROR_X]);
 
+#ifdef MY
+            std::pair<uint64_t, uint64_t> m = kernels::metrics::find_checksum_mismatches_new(gridDim * blockDim, d_ec_matrix, rows, cols, d_cc_control, ChecksumsToCompare::COL, &d_mismatch_info[MISMATCH_COUNT_X], d_error_xs, &d_mismatch_info[ERROR_X]);
+#else
             std::pair<uint64_t, uint64_t> m = kernels::metrics::find_checksum_mismatches(dimsToN(gridDim, blockDim));
+#endif
             globals::profiling::flop_counter += m.first;
             globals::profiling::transfer_counter += m.second;
         }
@@ -55,7 +61,11 @@ namespace cuda
             int blockDim = tileDim.x;
             kernels::find_checksum_mismatches<<<gridDim, blockDim, 0, secondaryStream>>>(d_ec_matrix, rows, cols, d_rc_control, ChecksumsToCompare::ROW, &d_mismatch_info[MISMATCH_COUNT_Y], d_error_ys, &d_mismatch_info[ERROR_Y]);
 
+#ifdef MY
+            std::pair<uint64_t, uint64_t> m = kernels::metrics::find_checksum_mismatches_new(gridDim * blockDim, d_ec_matrix, rows, cols, d_rc_control, ChecksumsToCompare::ROW, &d_mismatch_info[MISMATCH_COUNT_Y], d_error_ys, &d_mismatch_info[ERROR_Y]);
+#else
             std::pair<uint64_t, uint64_t> m = kernels::metrics::find_checksum_mismatches(dimsToN(gridDim, blockDim));
+#endif
             globals::profiling::flop_counter += m.first;
             globals::profiling::transfer_counter += m.second;
         }
