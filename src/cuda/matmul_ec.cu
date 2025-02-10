@@ -7,7 +7,7 @@
 #include "timer.h"
 #include <vector>
 
-#define CUDA_DEBUG_PRINT 0
+#define CUDA_DEBUG_PRINT 1
 
 #define SWAP(a, b)    \
     {                 \

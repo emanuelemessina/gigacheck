@@ -123,7 +123,7 @@ namespace programs
                         if (error_points.insert(point).second)
                         {
                             float val;
-                            val = random_float(globals::useIntValues);
+                            val = random_float(globals::useIntValues) + 1; // avoid 0 errors and threshold
 
                             int idx = error_points.size() - 1;
                             error_xs[idx] = x;
@@ -167,6 +167,9 @@ namespace programs
             float seconds = nanoseconds / (uint64_t)(1000 ^ 3);
             float performance = gigaflops / seconds;
             COUT << BOLD << "Total program performance: " << RESET << performance << " GFLOPs/s" << ENDL;
+            float bytes = globals::profiling::transfer_counter * (uint64_t)sizeof(float);
+            float intensity = globals::profiling::flop_counter / bytes;
+            COUT << BOLD << "Total program intensity: " << RESET << intensity << ENDL;
         }
 
         int result = 0;

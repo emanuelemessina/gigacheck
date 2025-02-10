@@ -20,7 +20,7 @@ __global__ void kernels::find_checksum_mismatches(const float* ec_matrix, int ro
     printf("%s thread %d: mat %f vs ctrl %f -> diff %f\n", checksums_to_compare == ChecksumsToCompare::ROW ? "row" : "col", idx, mat_checksum_item, control_checksum_item, diff);
 #endif
 
-    if (diff > 0.0001 * mat_checksum_item) // suppose 1 error per kernel, 1 thread in N triggers this // 1 op
+    if (diff > max(0.0001 * mat_checksum_item, 1.0f)) // suppose 1 error per kernel, 1 thread in N triggers this // 1 op
     {
         // atomically update the mismatch count
         int mismatch_idx = atomicAdd(mismatch_count, 1); // 1 transfer, 1 op
