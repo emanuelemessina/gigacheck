@@ -7,6 +7,8 @@
 #include "timer.h"
 #include <vector>
 
+#define CUDA_DEBUG_PRINT 0
+
 #define SWAP(a, b)    \
     {                 \
         auto tmp = a; \
@@ -292,6 +294,21 @@ namespace cuda
 
             CUDA_CHECK
         }
+
+#if CUDA_DEBUG_PRINT
+        printf("error xs: ");
+        for (int i = 0; i < errors_count; i++)
+            printf("%d ", error_xs[i]);
+        printf("\n");
+        printf("error ys: ");
+        for (int i = 0; i < errors_count; i++)
+            printf("%d ", error_ys[i]);
+        printf("\n");
+        printf("error vs: ");
+        for (int i = 0; i < errors_count; i++)
+            printf("%f ", error_values[i]);
+        printf("\n");
+#endif
 
         // print dC (with mul checksums)
         if (globals::debugPrint)

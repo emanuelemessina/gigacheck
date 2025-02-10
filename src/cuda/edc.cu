@@ -5,6 +5,8 @@
 #include <iostream>
 #include <vector>
 
+#define CUDA_DEBUG_PRINT 0
+
 namespace cuda
 {
     EDCResult errors_detect_correct(const float* d_ec_matrix, int rows, int cols, float* d_cc_control, float* d_rc_control, cudaStream_t mainStream, cudaStream_t secondaryStream, bool* recompute_vertical_checksums, bool* recompute_horizontal_checksums)
@@ -68,7 +70,7 @@ namespace cuda
             edc_res = UNCORRECTABLE_ERROR;
             if (globals::debugPrint)
             {
-                COUT << "Kernel error flag raised: (x " << mismatch_info[ERROR_Y] << ", y " << mismatch_info[ERROR_X] << ") mismatches found (max allowed per axis" << EDC_MAX_ERRORS << ")" << ENDL;
+                COUT << "Kernel error flag raised: (x " << mismatch_info[MISMATCH_COUNT_X] << ", y " << mismatch_info[MISMATCH_COUNT_Y] << ") mismatches found (max allowed per axis " << EDC_MAX_ERRORS << ")" << ENDL;
             }
             goto cleanup;
         }
@@ -120,12 +122,18 @@ namespace cuda
             if (error_xs[i] == cols)
             {
                 *recompute_horizontal_checksums = true;
+#if CUDA_DEBUG_PRINT
+                printf("discarded col checksum corruption\n");
+#endif
                 continue;
             }
 
             if (error_ys[i] == rows)
             {
                 *recompute_vertical_checksums = true;
+#if CUDA_DEBUG_PRINT
+                printf("discarded row checksum corruption\n");
+#endif
                 continue;
             }
 
@@ -168,7 +176,12 @@ namespace cuda
         CUDA_CHECK
 
         if (non_discarded == 0)
+        {
             edc_res = NO_ERROR;
+#if CUDA_DEBUG_PRINT
+            printf("all discarded\n");
+#endif
+        }
 
     cleanup:
 
