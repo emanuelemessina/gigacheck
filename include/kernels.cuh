@@ -101,7 +101,7 @@ namespace kernels
         {
             bool col = compute_direction == ReductionDirection::ALONG_COL;
             bool row = !col;
-            uint64_t flops = N * (N / blockdim) * 1 + N * (N / blockdim) * (N * 3 * col + N * 4 * row) + N * 1 + N * log2(blockdim) * (1 + 1 + 2) + 1 * (0 * is_control + 2 * col + 3 * row);
+            uint64_t flops = N * (N / blockdim) * 1 + N * (N / blockdim) * (N * 3 * col + N * 4 * row) + N * 1 + N * (uint64_t)log2(blockdim) * (1 + 1 + 2) + 1 * (0 * is_control + 2 * col + 3 * row);
             uint64_t transfers = N * (N / blockdim) * 1 + N * 1 + N * log2(blockdim) * 2 + 2;
             return std::make_pair(flops, transfers);
         }

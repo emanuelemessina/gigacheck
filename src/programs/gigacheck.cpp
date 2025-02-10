@@ -163,8 +163,8 @@ namespace programs
 
         {
             // performance = flops/time
-            float gigaflops = globals::profiling::flop_counter / (uint64_t)(1000 ^ 3);
-            float seconds = nanoseconds / (uint64_t)(1000 ^ 3);
+            float gigaflops = globals::profiling::flop_counter / (uint64_t)pow(1000, 3);
+            float seconds = nanoseconds / (uint64_t)pow(1000, 3);
             float performance = gigaflops / seconds;
             COUT << BOLD << "Total program performance: " << RESET << performance << " GFLOPs/s" << ENDL;
             float bytes = globals::profiling::transfer_counter * (uint64_t)sizeof(float);
