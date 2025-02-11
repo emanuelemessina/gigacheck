@@ -97,26 +97,24 @@ namespace kernels
      */
     namespace metrics
     {
-        inline std::pair<uint64_t, uint64_t> compute_checksums(uint64_t N, uint64_t blockdim, ReductionDirection compute_direction, bool is_control)
+        inline std::pair<uint64_t, uint64_t> compute_checksums(uint64_t N, uint64_t blockdim)
         {
-            bool col = compute_direction == ReductionDirection::ALONG_COL;
-            bool row = !col;
-            uint64_t flops = N * (N / blockdim) * 1 + N * (N / blockdim) * (N * 3 * col + N * 4 * row) + N * 1 + N * (uint64_t)log2(blockdim) * (1 + 1 + 2) + 1 * (0 * is_control + 2 * col + 3 * row);
-            uint64_t transfers = N * (N / blockdim) * 1 + N * 1 + N * log2(blockdim) * 2 + 2;
+            uint64_t flops = N * (N / blockdim) * 1 + N * (uint64_t)log2(blockdim) * 1;
+            uint64_t transfers = N * (N / blockdim) * 1 + 1;
             return std::make_pair(flops, transfers);
         }
 
         inline std::pair<uint64_t, uint64_t> find_checksum_mismatches(uint64_t N)
         {
-            uint64_t flops = (N - 1) * 8 + 1 * 1;
-            uint64_t transfers = (N - 1) * 3 + 1 * 2;
+            uint64_t flops = N * (2 + 2);
+            uint64_t transfers = N * 2 + 1;
             return std::make_pair(flops, transfers);
         }
 
         inline std::pair<uint64_t, uint64_t> tiled_matmul(uint64_t N, uint64_t blockdim)
         {
-            uint64_t flops = N * (N / blockdim) * ((1 + 2 + 2 + 11 + 2 + 2 + 11) + blockdim * 6) + N * 12;
-            uint64_t transfers = N * (N / blockdim) * ((1 + 1 + 1 + 1) + blockdim * 2) + N * 1;
+            uint64_t flops = N * (N / blockdim) * (blockdim * 2) + N * 1;
+            uint64_t transfers = N * (N / blockdim) * 2 + N * 1;
             return std::make_pair(flops, transfers);
         }
     }

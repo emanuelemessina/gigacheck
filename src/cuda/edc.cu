@@ -39,9 +39,13 @@ namespace cuda
         // depth-first issuing to avoid consecutive kernel scheduling blocking kernel0 signal to copy queue
 
         {
+            globals::profiling::timer.start();
+
             int gridDim = CEIL_DIV(cols + 1, tileDim.y);
             int blockDim = tileDim.y;
             kernels::find_checksum_mismatches<<<gridDim, blockDim, 0, mainStream>>>(d_ec_matrix, rows, cols, d_cc_control, ChecksumsToCompare::COL, &d_mismatch_info[MISMATCH_COUNT_X], d_error_xs, &d_mismatch_info[ERROR_X]);
+
+            globals::profiling::timer.stop();
 
             std::pair<uint64_t, uint64_t> m = kernels::metrics::find_checksum_mismatches(dimsToN(gridDim, blockDim));
             globals::profiling::flop_counter += m.first;
@@ -51,9 +55,13 @@ namespace cuda
         cudaMemcpyAsync(mismatch_info, d_mismatch_info, 2 * sizeof(float), cudaMemcpyDeviceToHost, mainStream);
 
         {
+            globals::profiling::timer.start();
+
             int gridDim = CEIL_DIV(rows + 1, tileDim.x);
             int blockDim = tileDim.x;
             kernels::find_checksum_mismatches<<<gridDim, blockDim, 0, secondaryStream>>>(d_ec_matrix, rows, cols, d_rc_control, ChecksumsToCompare::ROW, &d_mismatch_info[MISMATCH_COUNT_Y], d_error_ys, &d_mismatch_info[ERROR_Y]);
+
+            globals::profiling::timer.stop();
 
             std::pair<uint64_t, uint64_t> m = kernels::metrics::find_checksum_mismatches(dimsToN(gridDim, blockDim));
             globals::profiling::flop_counter += m.first;

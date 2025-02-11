@@ -128,7 +128,7 @@ void loadcheck_input_block(OperandMatrix operand, float* h_mat, float* d_mat, in
         ReductionDirection direction = operand == OperandMatrix::A ? ReductionDirection::ALONG_COL : ReductionDirection::ALONG_ROW;
         kernels::compute_checksums<<<gridDim, blockDim, sharedMemSize, stream>>>(d_mat, max_block_rows, max_block_cols, direction);
 
-        std::pair<uint64_t, uint64_t> m = kernels::metrics::compute_checksums(dimsToN(gridDim, blockDim), max(blockDim.x, blockDim.y), direction, false);
+        std::pair<uint64_t, uint64_t> m = kernels::metrics::compute_checksums(dimsToN(gridDim, blockDim), max(blockDim.x, blockDim.y));
         globals::profiling::flop_counter += m.first;
         globals::profiling::transfer_counter += m.second;
     }
@@ -174,12 +174,16 @@ void compute_control_checksums(float* C, ReductionDirection direction, int max_b
 
     if (direction == ReductionDirection::ALONG_COL)
     {
+        globals::profiling::timer.start();
+
         dim3 gridDim = dim3(MAX_BLOCK_COLS_C + 1);
         dim3 blockDim = dim3(1, tileDim.y);
         int sharedMemSize = linearDimToBytes(tileDim.y);
         kernels::compute_checksums<<<gridDim, blockDim, sharedMemSize, stream>>>(C, MAX_BLOCK_ROWS_C, (MAX_BLOCK_COLS_C + 1), ReductionDirection::ALONG_COL, result_array);
 
-        std::pair<uint64_t, uint64_t> m = kernels::metrics::compute_checksums(dimsToN(gridDim, blockDim), max(blockDim.x, blockDim.y), ReductionDirection::ALONG_COL, true);
+        globals::profiling::timer.stop();
+
+        std::pair<uint64_t, uint64_t> m = kernels::metrics::compute_checksums(dimsToN(gridDim, blockDim), max(blockDim.x, blockDim.y));
         globals::profiling::flop_counter += m.first;
         globals::profiling::transfer_counter += m.second;
     }
@@ -187,12 +191,16 @@ void compute_control_checksums(float* C, ReductionDirection direction, int max_b
     // compute row control checksum
     else
     {
+        globals::profiling::timer.start();
+
         dim3 gridDim = dim3(1, MAX_BLOCK_ROWS_C + 1);
         dim3 blockDim = dim3(tileDim.x, 1);
         int sharedMemSize = linearDimToBytes(tileDim.x);
         kernels::compute_checksums<<<gridDim, blockDim, sharedMemSize, stream>>>(C, (MAX_BLOCK_ROWS_C + 1), MAX_BLOCK_COLS_C, ReductionDirection::ALONG_ROW, result_array);
 
-        std::pair<uint64_t, uint64_t> m = kernels::metrics::compute_checksums(dimsToN(gridDim, blockDim), max(blockDim.x, blockDim.y), ReductionDirection::ALONG_ROW, true);
+        globals::profiling::timer.stop();
+
+        std::pair<uint64_t, uint64_t> m = kernels::metrics::compute_checksums(dimsToN(gridDim, blockDim), max(blockDim.x, blockDim.y));
         globals::profiling::flop_counter += m.first;
         globals::profiling::transfer_counter += m.second;
     }
@@ -269,9 +277,13 @@ namespace cuda
         // compute the actual matrix multiplication as usual
 
         {
+            globals::profiling::timer.start();
+
             dim3 gridDim = dim3(CEIL_DIV(MAX_BLOCK_COLS_C + extra, tileDim.x), CEIL_DIV(MAX_BLOCK_ROWS_C + extra, tileDim.y));
             int sharedMemSize = 2 * dim2ToBytes(tileDim);
             kernels::tiled_matmul<<<gridDim, tileDim, sharedMemSize, stream>>>(A, B, C, max_block_rows_A + extra, max_block_cols_A, max_block_cols_B + extra);
+
+            globals::profiling::timer.stop();
 
             CUDA_CHECK
 

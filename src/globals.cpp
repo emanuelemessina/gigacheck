@@ -13,5 +13,6 @@ namespace globals
     {
         uint64_t flop_counter = 0;
         uint64_t transfer_counter = 0;
+        CudaAggregateTimer timer;
     }
 }

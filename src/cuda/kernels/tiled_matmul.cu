@@ -42,18 +42,17 @@
  */
 __device__ int getMatrixLinearIndex(size_t mat_rows, size_t mat_cols, int tile_size, int tile_idy, int tile_idx, int el_row, int el_col)
 {
-    if (tile_idy * tile_size + el_row >= mat_rows) // 2 op
+    if (tile_idy * tile_size + el_row >= mat_rows)
         return -1;
 
-    if (tile_idx * tile_size + el_col >= mat_cols) // 2 op
+    if (tile_idx * tile_size + el_col >= mat_cols)
         return -1;
 
     return tile_idy * tile_size * mat_cols // select the correct row where the tile starts
            + tile_idx * tile_size          // select the column of the tile start
            + el_row * mat_cols             // select the right row within the tile
            + el_col;                       // select the right cell within the tile row
-                                           // 7 op
-} // tot 11 op
+}
 
 /**
  * @brief Get the value of a matrix in a specific cell, given the tile + (local)
@@ -73,9 +72,9 @@ __device__ int getMatrixLinearIndex(size_t mat_rows, size_t mat_cols, int tile_s
  */
 __device__ float getMatrixElement(float* matrix, int mat_rows, int mat_cols, int tile_size, int tile_idy, int tile_idx, int el_row, int el_col)
 {
-    int idx = getMatrixLinearIndex(mat_rows, mat_cols, tile_size, tile_idy, tile_idx, el_row, el_col); // 11 op
-    return idx == -1 ? 0.0 : matrix[idx];                                                              // 1 transf
-} // tot 1 transf, 11 op
+    int idx = getMatrixLinearIndex(mat_rows, mat_cols, tile_size, tile_idy, tile_idx, el_row, el_col);
+    return idx == -1 ? 0.0 : matrix[idx];
+} // 1 transf
 
 /**
  * @brief
@@ -94,12 +93,12 @@ __device__ float getMatrixElement(float* matrix, int mat_rows, int mat_cols, int
  */
 __device__ bool sumMatrixElement(float* matrix, int mat_rows, size_t mat_cols, int tile_size, int tile_idy, int tile_idx, int el_row, int el_col, float val)
 {
-    int idx = getMatrixLinearIndex(mat_rows, mat_cols, tile_size, tile_idy, tile_idx, el_row, el_col); // 11 op
+    int idx = getMatrixLinearIndex(mat_rows, mat_cols, tile_size, tile_idy, tile_idx, el_row, el_col);
     if (idx == -1)
         return false;
     matrix[idx] += val; // 1 transf, 1 op
     return true;
-} // 1 transf, 12 op
+} // 1 transf, 1 op
 
 __global__ void kernels::tiled_matmul(float* A, float* B, float* C, int rows_A, int cols_A, int cols_B)
 {
@@ -109,19 +108,19 @@ __global__ void kernels::tiled_matmul(float* A, float* B, float* C, int rows_A, 
     extern __shared__ float shared_mem[];
 
     float* shared_A = shared_mem;
-    float* shared_B = shared_mem + TILESIDE_BNK * TILESIDE; // 2 op
+    float* shared_B = shared_mem + TILESIDE_BNK * TILESIDE;
 
     float res = 0;
 
     // load tiles into shared memory
 
-    for (int tile_idx = 0; tile_idx < NUM_TILES_X; tile_idx++) // this thread looks through the tiles on his same row horizontally  // N/blockdim op
+    for (int tile_idx = 0; tile_idx < NUM_TILES_X; tile_idx++) // this thread looks through the tiles on his same row horizontally  // N/blockdim iterations
     {
         // load matrices elements into the shared tiles memory:
         //     - element (TH_ROW, TH_COL) of tile (TILE_IDY, tile_idx) of matrix A (one of A's tiles on the same grid row as this thread)
         //     - element (TH_ROW, TH_COL) of tile (tile_idx, TILE_IDX) of matrix B (the corresponding B tile, on the same grid column as the current row, and on the same grid row as the current column, because of how matrix multiplication works)
-        shared_A[TH_ROW * SKIPROWS_TILE + TH_COL] = getMatrixElement(A, rows_A, cols_A, TILESIDE, TILE_IDY, tile_idx, TH_ROW, TH_COL); // 2 op + 1 transf, 2 op + 11 op, 1 transf
-        shared_B[TH_ROW * SKIPROWS_TILE + TH_COL] = getMatrixElement(B, ROWS_B, cols_B, TILESIDE, tile_idx, TILE_IDX, TH_ROW, TH_COL); // 2 op + 1 transf, 2 op + 11 op, 1 transf
+        shared_A[TH_ROW * SKIPROWS_TILE + TH_COL] = getMatrixElement(A, rows_A, cols_A, TILESIDE, TILE_IDY, tile_idx, TH_ROW, TH_COL); // 1 transf
+        shared_B[TH_ROW * SKIPROWS_TILE + TH_COL] = getMatrixElement(B, ROWS_B, cols_B, TILESIDE, tile_idx, TILE_IDX, TH_ROW, TH_COL); // 1 transf
 
         // another thread on the same row as this one will look at the same tiles but load elements from his corresponding column in each tile chunk that he looks at
         // theads from other rows will do the same
@@ -133,8 +132,8 @@ __global__ void kernels::tiled_matmul(float* A, float* B, float* C, int rows_A, 
 
         // compute product on the shared memory tile
 
-        for (int el = 0; el < TILESIDE; el++)                                                     // this thread looks through the elements of the tile horizontally   // blockdim op
-            res += shared_A[TH_ROW * SKIPROWS_TILE + el] * shared_B[TH_COL + el * SKIPROWS_TILE]; // tileA[TH_ROW, el] * tileB[el, TH_COL] , with the tile this thread belongs to  // 2 transf, 6 op
+        for (int el = 0; el < TILESIDE; el++)                                                     // this thread looks through the elements of the tile horizontally   // blockdim iterations
+            res += shared_A[TH_ROW * SKIPROWS_TILE + el] * shared_B[TH_COL + el * SKIPROWS_TILE]; // tileA[TH_ROW, el] * tileB[el, TH_COL] , with the tile this thread belongs to  // 2 op
         // this thread will sum all the products in his tile into the result
         // at the next iteration, this thread will update the result with the product of the next tile
 
@@ -146,8 +145,8 @@ __global__ void kernels::tiled_matmul(float* A, float* B, float* C, int rows_A, 
     }
 
     // this thread will write his result into C, other threads will do the same for their positions
-    sumMatrixElement(C, ROWS_C, COLS_C, TILESIDE, TILE_IDY, TILE_IDX, TH_ROW, TH_COL, res); // 1 transf, 12 op
+    sumMatrixElement(C, ROWS_C, COLS_C, TILESIDE, TILE_IDY, TILE_IDX, TH_ROW, TH_COL, res); // 1 transf, 1 op
 }
 
-// transfers = N*(N/blockdim)*[(1+1+1+1)+blockdim*2] + N*1
-// ops = N*(N/blockdim)*[(1 2+2+11+2+2+11)+blockdim*6] + N*12
+// transfers = N*(N/blockdim)*2 + N*1
+// ops = N*(N/blockdim)*(blockdim*2) + N*1

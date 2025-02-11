@@ -138,6 +138,8 @@ namespace programs
                 per_block_error_ys.push_back(error_ys);
             }
 
+            globals::profiling::timer = CudaAggregateTimer();
+
             cuda::EDCResult edc_res = cuda::matmul_ec(A, B, C, ra, ca, cb, errors_count, per_block_error_xs.data(), per_block_error_ys.data(), per_block_error_values.data(), strategy);
 
             if (edc_res == cuda::UNCORRECTABLE_ERROR)
@@ -163,12 +165,13 @@ namespace programs
 
         {
             // performance = flops/time
-            float gigaflops = globals::profiling::flop_counter / (uint64_t)pow(1000, 3);
-            float seconds = nanoseconds / (uint64_t)pow(1000, 3);
+            float seconds = globals::profiling::timer.aggregate() / (double)1000;
+            COUT << BOLD << "Total kernels time: " << RESET << seconds << " s" << ENDL;
+            float gigaflops = globals::profiling::flop_counter / (double)pow(1000, 3);
             float performance = gigaflops / seconds;
             COUT << BOLD << "Total program performance: " << RESET << performance << " GFLOPs/s" << ENDL;
-            float bytes = globals::profiling::transfer_counter * (uint64_t)sizeof(float);
-            float intensity = globals::profiling::flop_counter / bytes;
+            uint64_t bytes = globals::profiling::transfer_counter * (uint64_t)sizeof(float);
+            float intensity = globals::profiling::flop_counter / (double)bytes;
             COUT << BOLD << "Total program intensity: " << RESET << intensity << ENDL;
         }
 

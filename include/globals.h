@@ -1,5 +1,6 @@
 #pragma once
 
+#include "timer.h"
 #include <stddef.h>
 #include <stdint.h>
 
@@ -19,5 +20,6 @@ namespace globals
     {
         extern uint64_t flop_counter;
         extern uint64_t transfer_counter;
+        extern CudaAggregateTimer timer;
     }
 }

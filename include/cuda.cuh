@@ -1,7 +1,6 @@
 #pragma once
 
 #include "edc.cuh"
-#include "globals.h"
 #include "iomod.h"
 #include <stdio.h>
 #include <string>
