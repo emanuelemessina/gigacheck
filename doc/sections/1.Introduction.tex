@@ -1,8 +1,26 @@
 \section{Introduction}
 
-TODO spiegare perchè tutto
+Matrix multiplication is a fundamental operation
+in various scientific, engineering, and data-driven domains,
+including deep learning, scientific simulations, and aerospace systems.
+These fields often rely on high-performance hardware accelerators, such as GPUs,
+to handle computationally intensive tasks.
+However, the complexity and high utilization of modern GPU environments
+make them susceptible to errors caused by hardware faults,
+thermal fluctuations, and cosmic rays, particularly in aerospace applications
+where hardware is exposed to extreme environments.
+Fault-tolerant computation strategies are critical in such contexts,
+as undetected errors in matrix operations can lead to model mispredictions
+in neural networks or potentially catastrophic failures in mission-critical
+aerospace systems.
+In this report, we present our implementation of a fault-tolerant
+matrix multiplication algorithm on CUDA, capable of handling matrices whose size would not allow a single-shot computation of the multiplication inside the GPU, as it would require an excess with respect to the available global memory.
 
-This paper is structured as follows:
+This paper is structured as follows: TODO METTERE LINK ALLE SEZIONI
 \begin{itemize}
-	\item Section 2 describes TODO ...
+  \item In SECTION 2 we discuss the background theory regarding matrix multiplication and ABFT.
+  \item In SECTION 3 we present an overview of our algorithm to see how it works in the bigger picture, before going into the details in the subsequent sections.
+  \item In SECTION 4 we explain how we perform the block level product, error detection and correction.
+  \item In SECTION 5 we illustrate our buffering strategies when dealing with large matrices.
+  \item In SECTION 6 we discuss the performance differences when varying parameters.
 \end{itemize}
