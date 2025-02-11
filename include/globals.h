@@ -20,6 +20,8 @@ namespace globals
     {
         extern uint64_t flop_counter;
         extern uint64_t transfer_counter;
-        extern CudaAggregateTimer timer;
+        extern CudaAggregateTimer kernelTimer;
+        extern CudaAggregateTimer totalTimer;
+        extern CudaAggregateTimer memcpyTimer;
     }
 }

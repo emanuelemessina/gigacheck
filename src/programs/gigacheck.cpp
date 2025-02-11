@@ -138,9 +138,12 @@ namespace programs
                 per_block_error_ys.push_back(error_ys);
             }
 
-            globals::profiling::timer = CudaAggregateTimer();
+            globals::profiling::totalTimer = CudaAggregateTimer();
+            globals::profiling::totalTimer.start();
 
             cuda::EDCResult edc_res = cuda::matmul_ec(A, B, C, ra, ca, cb, errors_count, per_block_error_xs.data(), per_block_error_ys.data(), per_block_error_values.data(), strategy);
+
+            globals::profiling::totalTimer.stop();
 
             if (edc_res == cuda::UNCORRECTABLE_ERROR)
             {
@@ -164,15 +167,18 @@ namespace programs
         // calculate performance metrics
 
         {
-            // performance = flops/time
-            float seconds = globals::profiling::timer.aggregate() / (double)1000;
-            COUT << BOLD << "Total kernels time: " << RESET << seconds << " s" << ENDL;
+            float totalCudaTime = globals::profiling::totalTimer.aggregate();
+            float totalCudaCpTime = globals::profiling::memcpyTimer.aggregate();
+            COUT << BOLD << "CPU transfers: " << RESET << (float)(totalCudaCpTime / (double)1000) << " s" << ENDL;
+            float kernelNetTime = totalCudaTime - totalCudaCpTime;
+            float seconds = kernelNetTime / (double)1000;
+            COUT << BOLD << "Kernels effective time: " << RESET << seconds << " s" << ENDL;
             float gigaflops = globals::profiling::flop_counter / (double)pow(1000, 3);
             float performance = gigaflops / seconds;
             COUT << BOLD << "Total program performance: " << RESET << performance << " GFLOPs/s" << ENDL;
             uint64_t bytes = globals::profiling::transfer_counter * (uint64_t)sizeof(float);
             float intensity = globals::profiling::flop_counter / (double)bytes;
-            COUT << BOLD << "Total program intensity: " << RESET << intensity << ENDL;
+            COUT << BOLD << "Total program intensity: " << RESET << intensity << " FLOPs/B" << ENDL;
         }
 
         int result = 0;

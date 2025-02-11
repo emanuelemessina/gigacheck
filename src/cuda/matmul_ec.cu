@@ -50,6 +50,8 @@ enum class OperandMatrix
  */
 void host_block_to_device(float* matrix, float* dst, int rows, int cols, int allocated_cols, int initial_offset, int next_row_offset, bool will_need_row_checksum, cudaStream_t stream)
 {
+    globals::profiling::memcpyTimer.start();
+
     matrix += initial_offset;
     for (int i = 0; i < rows; i++)
     {
@@ -58,6 +60,8 @@ void host_block_to_device(float* matrix, float* dst, int rows, int cols, int all
         matrix += next_row_offset;
         dst += allocated_cols + (will_need_row_checksum ? 1 : 0);
     }
+
+    globals::profiling::memcpyTimer.stop();
 }
 
 /**
@@ -74,6 +78,8 @@ void host_block_to_device(float* matrix, float* dst, int rows, int cols, int all
  */
 void device_block_to_host(float* matrix, float* dst, int rows, int cols, int allocated_cols, int initial_offset, int next_row_offset, cudaStream_t stream)
 {
+    globals::profiling::memcpyTimer.start();
+
     dst += initial_offset;
     for (int i = 0; i < rows; i++)
     {
@@ -82,6 +88,8 @@ void device_block_to_host(float* matrix, float* dst, int rows, int cols, int all
         dst += next_row_offset;
         matrix += allocated_cols;
     }
+
+    globals::profiling::memcpyTimer.stop();
 }
 
 /**
@@ -102,11 +110,15 @@ void device_block_to_host(float* matrix, float* dst, int rows, int cols, int all
  */
 void loadcheck_input_block(OperandMatrix operand, float* h_mat, float* d_mat, int rows, int cols, int num_split_row, int num_split_col, int max_block_rows, int max_block_cols, int block_idy, int block_idx, cudaStream_t stream)
 {
+    globals::profiling::memcpyTimer.start();
+
     // copy to device
     int extra = globals::noEDC ? 0 : 1;
     int size = operand == OperandMatrix::A ? ((max_block_rows + extra) * max_block_cols * sizeof(float)) : (max_block_rows * (max_block_cols + extra) * sizeof(float));
     if (block_idx == num_split_col - 1 || block_idy == num_split_row - 1)
         cudaMemsetAsync(d_mat, 0, size, stream);
+
+    globals::profiling::memcpyTimer.stop();
 
     int block_rows = CEIL_DIV(rows, num_split_row);
     int block_cols = CEIL_DIV(cols, num_split_col);
@@ -121,6 +133,8 @@ void loadcheck_input_block(OperandMatrix operand, float* h_mat, float* d_mat, in
 
     if (!globals::noEDC)
     {
+        globals::profiling::kernelTimer.start();
+
         // calculate col checksum for A / row checksum for B
         dim3 gridDim = operand == OperandMatrix::A ? dim3(max_block_cols) : dim3(1, max_block_rows);
         dim3 blockDim = operand == OperandMatrix::A ? dim3(1, tileDim.y) : dim3(tileDim.x, 1);
@@ -131,6 +145,8 @@ void loadcheck_input_block(OperandMatrix operand, float* h_mat, float* d_mat, in
         std::pair<uint64_t, uint64_t> m = kernels::metrics::compute_checksums(dimsToN(gridDim, blockDim), max(blockDim.x, blockDim.y));
         globals::profiling::flop_counter += m.first;
         globals::profiling::transfer_counter += m.second;
+
+        globals::profiling::kernelTimer.start();
     }
 
     // Print mat (with checksums)
@@ -170,18 +186,16 @@ void loadcheck_input_block(OperandMatrix operand, float* h_mat, float* d_mat, in
  */
 void compute_control_checksums(float* C, ReductionDirection direction, int max_block_cols_B, int max_block_rows_A, cudaStream_t stream, float* result_array)
 {
+    globals::profiling::kernelTimer.start();
+
     // compute col control checksum
 
     if (direction == ReductionDirection::ALONG_COL)
     {
-        globals::profiling::timer.start();
-
         dim3 gridDim = dim3(MAX_BLOCK_COLS_C + 1);
         dim3 blockDim = dim3(1, tileDim.y);
         int sharedMemSize = linearDimToBytes(tileDim.y);
         kernels::compute_checksums<<<gridDim, blockDim, sharedMemSize, stream>>>(C, MAX_BLOCK_ROWS_C, (MAX_BLOCK_COLS_C + 1), ReductionDirection::ALONG_COL, result_array);
-
-        globals::profiling::timer.stop();
 
         std::pair<uint64_t, uint64_t> m = kernels::metrics::compute_checksums(dimsToN(gridDim, blockDim), max(blockDim.x, blockDim.y));
         globals::profiling::flop_counter += m.first;
@@ -191,19 +205,17 @@ void compute_control_checksums(float* C, ReductionDirection direction, int max_b
     // compute row control checksum
     else
     {
-        globals::profiling::timer.start();
-
         dim3 gridDim = dim3(1, MAX_BLOCK_ROWS_C + 1);
         dim3 blockDim = dim3(tileDim.x, 1);
         int sharedMemSize = linearDimToBytes(tileDim.x);
         kernels::compute_checksums<<<gridDim, blockDim, sharedMemSize, stream>>>(C, (MAX_BLOCK_ROWS_C + 1), MAX_BLOCK_COLS_C, ReductionDirection::ALONG_ROW, result_array);
 
-        globals::profiling::timer.stop();
-
         std::pair<uint64_t, uint64_t> m = kernels::metrics::compute_checksums(dimsToN(gridDim, blockDim), max(blockDim.x, blockDim.y));
         globals::profiling::flop_counter += m.first;
         globals::profiling::transfer_counter += m.second;
     }
+
+    globals::profiling::kernelTimer.stop();
 }
 
 namespace cuda
@@ -277,13 +289,13 @@ namespace cuda
         // compute the actual matrix multiplication as usual
 
         {
-            globals::profiling::timer.start();
+            globals::profiling::kernelTimer.start();
 
             dim3 gridDim = dim3(CEIL_DIV(MAX_BLOCK_COLS_C + extra, tileDim.x), CEIL_DIV(MAX_BLOCK_ROWS_C + extra, tileDim.y));
             int sharedMemSize = 2 * dim2ToBytes(tileDim);
             kernels::tiled_matmul<<<gridDim, tileDim, sharedMemSize, stream>>>(A, B, C, max_block_rows_A + extra, max_block_cols_A, max_block_cols_B + extra);
 
-            globals::profiling::timer.stop();
+            globals::profiling::kernelTimer.stop();
 
             CUDA_CHECK
 
@@ -310,6 +322,8 @@ namespace cuda
 
         // introduce errors in dC
         {
+            globals::profiling::memcpyTimer.start();
+
             for (int i = 0; i < errors_count; i++)
             {
                 float tmp;
@@ -322,6 +336,8 @@ namespace cuda
             cudaEventRecord(C_err_added, stream);
 
             CUDA_CHECK
+
+            globals::profiling::memcpyTimer.stop();
         }
 
 #if CUDA_DEBUG_PRINT
@@ -406,6 +422,9 @@ namespace cuda
 
     EDCResult matmul_ec(float* A, float* B, float* C, int rows_A, int cols_A, int cols_B, int errors_count, int** per_block_error_xs, int** per_block_error_ys, float** error_values, MulStrategy strategy)
     {
+        globals::profiling::kernelTimer = CudaAggregateTimer();
+        globals::profiling::memcpyTimer = CudaAggregateTimer();
+
         // calculate the number of blocks to split A and B into, based on the chosen strategy and the available memory
 
         int num_split_common_dim;
@@ -535,10 +554,14 @@ namespace cuda
         {
             for (int C_block_idx = 0; C_block_idx < num_split_other_dim && result_correct; C_block_idx += (strategy == parallelMul ? 2 : 1)) // iterate over C blocks horizontally (if 2 muls we process two cols at a time)
             {
+                globals::profiling::memcpyTimer.start();
+
                 // clear the result buffer(s) so we can perform additive mul with one kernel
                 cudaMemsetAsync(dC, 0, size_C_ec, stream_C);
                 if (strategy == parallelMul && C_block_idx + 1 < num_split_other_dim)
                     cudaMemsetAsync(dC_alt, 0, size_C_ec, stream_C_alt);
+
+                globals::profiling::memcpyTimer.stop();
 
                 for (int block_common_id = 0; block_common_id < num_split_common_dim && result_correct; block_common_id++) // iterate over blocks along the common dimension
                 {

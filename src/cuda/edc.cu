@@ -13,6 +13,8 @@ namespace cuda
     {
         EDCResult edc_res;
 
+        globals::profiling::memcpyTimer.start();
+
         // allocate mismatches index buffers
 
         int error_xs[EDC_MAX_ERRORS], error_ys[EDC_MAX_ERRORS];
@@ -31,6 +33,8 @@ namespace cuda
 
         CUDA_CHECK
 
+        globals::profiling::memcpyTimer.stop();
+
 #define MISMATCH_COUNT_X 0
 #define ERROR_X 1
 #define MISMATCH_COUNT_Y 2
@@ -39,36 +43,40 @@ namespace cuda
         // depth-first issuing to avoid consecutive kernel scheduling blocking kernel0 signal to copy queue
 
         {
-            globals::profiling::timer.start();
+            globals::profiling::kernelTimer.start();
 
             int gridDim = CEIL_DIV(cols + 1, tileDim.y);
             int blockDim = tileDim.y;
             kernels::find_checksum_mismatches<<<gridDim, blockDim, 0, mainStream>>>(d_ec_matrix, rows, cols, d_cc_control, ChecksumsToCompare::COL, &d_mismatch_info[MISMATCH_COUNT_X], d_error_xs, &d_mismatch_info[ERROR_X]);
 
-            globals::profiling::timer.stop();
-
             std::pair<uint64_t, uint64_t> m = kernels::metrics::find_checksum_mismatches(dimsToN(gridDim, blockDim));
             globals::profiling::flop_counter += m.first;
             globals::profiling::transfer_counter += m.second;
         }
 
+        globals::profiling::memcpyTimer.start();
+
         cudaMemcpyAsync(mismatch_info, d_mismatch_info, 2 * sizeof(float), cudaMemcpyDeviceToHost, mainStream);
 
-        {
-            globals::profiling::timer.start();
+        globals::profiling::memcpyTimer.stop();
 
+        {
             int gridDim = CEIL_DIV(rows + 1, tileDim.x);
             int blockDim = tileDim.x;
             kernels::find_checksum_mismatches<<<gridDim, blockDim, 0, secondaryStream>>>(d_ec_matrix, rows, cols, d_rc_control, ChecksumsToCompare::ROW, &d_mismatch_info[MISMATCH_COUNT_Y], d_error_ys, &d_mismatch_info[ERROR_Y]);
 
-            globals::profiling::timer.stop();
+            globals::profiling::kernelTimer.stop();
 
             std::pair<uint64_t, uint64_t> m = kernels::metrics::find_checksum_mismatches(dimsToN(gridDim, blockDim));
             globals::profiling::flop_counter += m.first;
             globals::profiling::transfer_counter += m.second;
         }
 
+        globals::profiling::memcpyTimer.start();
+
         cudaMemcpyAsync(mismatch_info + 2, d_mismatch_info + 2, 2 * sizeof(float), cudaMemcpyDeviceToHost, secondaryStream);
+
+        globals::profiling::memcpyTimer.stop();
 
         cudaStreamSynchronize(mainStream);
         cudaStreamSynchronize(secondaryStream);
@@ -112,8 +120,10 @@ namespace cuda
         // overwrite d_ec_matrix with corrected vals
 
         // copy mismatch coords to host
+        globals::profiling::memcpyTimer.start();
         cudaMemcpyAsync(error_xs, d_error_xs, num_errors * sizeof(float), cudaMemcpyDeviceToHost, mainStream);
         cudaMemcpyAsync(error_ys, d_error_ys, num_errors * sizeof(float), cudaMemcpyDeviceToHost, mainStream);
+        globals::profiling::memcpyTimer.stop();
 
         // allocate host correction checksums
         float* correction_checksums;
@@ -165,6 +175,8 @@ namespace cuda
 
             // calculate correction
 
+            globals::profiling::memcpyTimer.start();
+
             // copy correction checksum
             cudaMemcpyAsync(correction_checksums + i, (collinear_axis == AXIS_X ? d_ec_matrix + rows * (cols + 1) + error_xs[i] : d_ec_matrix + error_ys[i] * (cols + 1) + cols), sizeof(float), cudaMemcpyDeviceToHost, mainStream);
             // copy control checksum
@@ -179,6 +191,8 @@ namespace cuda
 
             // write correction
             cudaMemcpyAsync((void*)(d_ec_matrix + error_ys[i] * (cols + 1) + error_xs[i]), corrected_vals + i, sizeof(float), cudaMemcpyHostToDevice, mainStream);
+
+            globals::profiling::memcpyTimer.stop();
 
             if (globals::debugPrint)
             {
