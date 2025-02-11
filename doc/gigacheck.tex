@@ -2,6 +2,19 @@
 
 \usepackage{graphicx}
 \usepackage[a4paper,width=150mm,top=25mm,bottom=25mm, bindingoffset=10mm]{geometry}
+\usepackage{xcolor}
+\usepackage[justification=centering]{caption}
+
+\definecolor{light-gray}{gray}{0.9}
+\newcommand{\code}[1]{\colorbox{light-gray}{\texttt{#1}}}
+
+\newcommand{\img}[3]{
+	\begin{figure}[h]
+		\centering
+		\includegraphics[width=#2]{images/#1}
+		\caption{#3}\label{img:#1}
+	\end{figure}
+}
 
 \usepackage{hyperref}
 \usepackage{amsmath}
