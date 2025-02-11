@@ -15,12 +15,49 @@ An example of matrix splitting is provided in figure~\ref{img:example-of-splits}
 
 \subsection{Strategy 1: no buffering}
 
-
+This is the naive approach: the GPU memory is divided into 3 blocks, A, B and C.
+At every product, the iteration loads A and B in parallel, then sums the product into C.
+Whenever all the multiplications for a block of C are done, the block itself is unloaded to the CPU memory, while in the meantime the next A and B can start loading.
+A timing diagram of this strategy can be seen in figure~\ref{}.
 
 \subsection{Strategy 2: double buffer for A and B}
+
+When using strategy 1, the multiplication requires A and B to be loaded: this means that while A and B are being transfered to GPU, no computation is being done (except for the checksums, that are however very fast).
+Similarly, loading the next A and B requires the product to be completed, thus having no memory transfer while computing the product.
+Effectively, this means that the 3 CUDA queues are mostly disjoint: the only overlaps are H2D and D2H when copying C (not at every iteration), and D2H and compute while calculating the checksums (for a very short time).
+
+Strategy 2 aims to improve this situation, by dividing the GPU memory in two extra blocks (5 in total, called A, A', B, B' and C).
+Initially, A and B are pre-loaded.
+Then, before starting the product, A' and B' start to load the next block, in an asynchronous way.
+In the same time, C can compute the product on A and B.
+When both the new loading and the product are finished, the buffers are swapped: C can immediately start multiplying A' and B', while A and B load the next block.
+This allows to overlap the D2H and compute queues in the time when the ``offline'' A and B are loading.
+Figure~\ref{} shows the timing relative to this strategy
+
 \subsection{Strategy 3: double buffer for A, B and C}
+
+This strategy brings to the extreme the idea behind strategy 2.
+In strategy 2, multiplications are still forbidden while C is offloading, to avoid overriding not-yet-saved results.
+Strategy 3 introduces a new buffer, called C', that works similarly to A' and B'.
+At the beginning, the product is computed on C.
+Then, when a full block has been computed, C is switched with C', to be able to immediately start the computation, while the offloading of C can go on in the background.
+This ideally allows the compute stream (the bottleneck of the complex task of matrix multiplications) to run continuously, regardless of the status of the transfer queues.
+
+Differently from strategy 2, however, the gained parallelism only occurs once every \texttt{num\_split\_common\_dim} iterations: this fact makes the speedup less impactful, with the risk of it being shadowed by the reduction in block sizes required to fit C' in the GPU memory.
+
+Figure~\ref{} displays the timing diagram, in the optimal case when the addition of C' does not require more multiplications.
+
 \subsection{Strategy 4: double concurrent product}
 
+Since the slowest part of the program is the actual computation of the product, we tried to execute more than one in parallel.
+Under the (uncertain) assumption that two multiplications can be done in parallel, this would really speed up the program.
+Moreover, if the assumption is false, this idea should not be slower than strategy 3.
+
+Strategy 4 uses the buffers C and C' to compute a block of the final matrix into C, and the block to its right into C', if it exists.
+Using this method, the two products multiply the same block of A with shifted blocks of C: therefore, we can use just 3 buffers for the operands: A, B and B'.
+This also increases the size of each buffer.
+
+For this final strategy we draw the timing diagram for the two cases: if the parallel multiplications hypothesis holds (figure~\ref{}) or if it is wrong (figure~\ref{}).
 
 \subsection{Strassen algorithm}
 
