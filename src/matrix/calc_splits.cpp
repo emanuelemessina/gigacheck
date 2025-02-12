@@ -13,8 +13,9 @@ bool matrix::calc_splits(MulStrategy strategy, int rows_A, int cols_A, int cols_
 
     switch (strategy)
     {
-        case parallelMul: // AB->C,A'B'->C'
-            factEDC = 2;
+        case parallelMul: // AB->C,AB'->C'
+            factB = factC = factEDC = 2;
+            break;
         case preloadAB_deferUnloadC: // AB->C,A'B',C'
             factC = 2;
         case preloadAB: // AB->C,A'B'
