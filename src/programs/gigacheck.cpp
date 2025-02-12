@@ -172,10 +172,10 @@ namespace programs
             COUT << BOLD << "Total CUDA time: " << RESET << seconds << " s" << ENDL;
             float gigaflops = globals::profiling::flop_counter / (double)pow(1000, 3);
             float performance = gigaflops / seconds;
-            COUT << BOLD << "Average program performance: " << RESET << performance << " GFLOPs/s" << ENDL;
+            COUT << BOLD << "Average program performance: " << RESET << performance << " GFLOP/s" << ENDL;
             uint64_t bytes = globals::profiling::transfer_counter * (uint64_t)sizeof(float);
             float intensity = globals::profiling::flop_counter / (double)bytes;
-            COUT << BOLD << "Total kernel intensity: " << RESET << intensity << " FLOPs/B" << ENDL;
+            COUT << BOLD << "Total kernel intensity: " << RESET << intensity << " FLOP/B" << ENDL;
         }
 
         int result = 0;
