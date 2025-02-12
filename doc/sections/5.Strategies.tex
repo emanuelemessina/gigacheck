@@ -13,6 +13,14 @@ An example of matrix splitting is provided in figure~\ref{img:example-of-splits}
 
 \img{example-of-splits}{.6\linewidth}{An example of how matrices A and B can be split}
 
+In order to choose how to split, the algorithm computes the required memory, and compares it with the available memory.
+If the available memory is smaller by a factor $k$, then:
+\begin{itemize}
+	\itemsep 0em
+	\item \code{num\_split\_common\_dim} is assigned the value $\sqrt{k}$.
+	\item\code{num\_split\_other\_dim} is assigned the value $\lceil \frac{k}{num\_split\_other\_dim} \rceil$.
+\end{itemize}
+
 \subsection{Strategy 1: no buffering}
 
 This is the naive approach: the GPU memory is divided into 3 blocks: A, B and C.
