@@ -3,5 +3,13 @@
 
 \subsection{Computing checksums}
 \subsection{Computing the product}
-Strassen no perchè errore si ripete
+
+When the matrices are small enough to fit on GPU (or we are working on blocks), the multiplication is realized by means of the standard tiled algorithm for GPU.
+
+Initially, we believed that we could apply one or two recursions of Strassen algorithm to reduce the number of products.
+Then, we realized that this would make the same error appear in different submatrices: this would make it much harder to correct it, since non-collinear errors are not correctable.
+For this reason, we decided to drop Strassen algorithm at this smaller size level.
+
+\img{tiled-matmul-pseudocode}{0.7\linewidth}{the pseudocode of the kernel that computes the matrix multiplication using the tiled approach}
+
 \subsection{Error correction}
