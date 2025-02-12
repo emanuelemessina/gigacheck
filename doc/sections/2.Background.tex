@@ -202,6 +202,32 @@ At the beginning we believed that this algorithm could be useful to speed up our
 \img{matmul-2x2-strassen}{.6\linewidth}{A product of 2x2 matrices with the Strassen algorithm}
 \subsection{CUDA queues}
 
+On top of the parallelization of the threads, CUDA also allows to parallelize different types of operations.
+In particular, it defines three queues:
+\begin{itemize}
+	\itemsep 0em
+	\item H2D: the queue where the memory transfers from host to device happen
+	\item compute: where all threads are scheduled
+	\item D2H: where the GPU schedules the memory transfers from device to host
+\end{itemize}
+If the code is well written, CUDA allows different operations to run concurrently, if they belong to different queues.
+Ideally, this means for example that a kernel, a \texttt{cudaMemcpyHostToDevice}, and a \texttt{cudaMemcpyDeviceToHost} could all run concurrently.
+On top of this, the compute queue can also allow multiple kernel being executed concurrently, if they belong to different streams and hardware resources are enough.
+Instead, the H2D and D2H queues can only have a single data transfer each at the same time, regardless of streams.
+
+This is however limited by the restrictions imposed by the scheduler:
+\begin{itemize}
+	\itemsep 0em
+	\item An operation is only called if all the previous operations in the same stream are complete
+	\item An operation is only called if all the previous ones in the same queue have been completed
+	\item A blocked operation in a queue blocks all subsequent operations, even if they belong to different streams
+	\item The signal that notifies from the compute queue to the D2H queue that a kernel is finished is delayed to when all sequential threads are finished
+\end{itemize}
+This means that calling operations in a breadth-first approach (eg. $kernel_{stream1} \rightarrow kernel_{stream 2} \rightarrow D2H_{stream 1} \rightarrow D2H_{stream 2}$) may lead to $D2H_{stream 1}$ having to wait for the completion of $kernel_{stream 2}$ before starting.
+If instead operations are called with a depth-first approach (eg. $kernel_{stream1} \rightarrow D2H_{stream 1}  \rightarrow kernel_{stream 2}\rightarrow D2H_{stream 2}$), then the risk does not exist.
+
+In our project, we paid attention to always schedule operations in a depth-first approach
+
 \subsection{Tiled matrix multiplication}
 
 The tiled matrix multiplication is an algorithm that implements the traditional matrix multiplication algorithm, by exploiting the shared memory of a GPU to speed up the process.
