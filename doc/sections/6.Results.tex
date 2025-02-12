@@ -2,10 +2,10 @@
 \label{sec:results}
 
 We wrote a simple CLI program to evaluate the algorithm under different conditions.
-The program allows setting the input dimensions, the number of errors to introduce
+The program allows to set the input dimensions, the number of errors to introduce
 and whether they should be collinear or not,
 the simulated maximum amount of global memory, and the buffering strategy to use.
-Several minor debugging parameters can be set, but are out of the scope of this paper.
+Several minor debugging parameters can be set, but they are out of the scope of this paper.
 
 We tested the four strategies on a Quadro K620 desktop GPU. An important thing to consider is that display GPUs have a timeout on kernel executions, so we couldn't run tests with very large matrices. In any case, we believe that for bigger matrices the calculated performance should increase asymptotically.
 
@@ -13,7 +13,7 @@ When it came to profiling, the Nsight Compute suite was only available for the n
 
 As performance metrics, we used the overall execution time of the program (both total CPU and CUDA only), the total floating point arithmetic intensity and the average program performance (calculated as the total floating point operations over the total CUDA time).
 
-To calculate the total floating point operations and the associated transfers to and from global memory (to then calculate the arithmetic intensity), we manually calculated the floating point operations number and associated global memory transfers count for each kernel we wrote. The program registers each kernel call and add its float operations and transfers count to their respective counter.
+To calculate the total floating point operations and the associated transfers to and from global memory (to then calculate the arithmetic intensity), we manually calculated the floating point operations number and associated global memory transfers count for each kernel we wrote. The program registers each kernel call and adds its float operations and transfers count to their respective counter.
 
 To calculate the effective compute time we use CUDA events to register the start and end of the program (getting the total CUDA time with respect to the default stream).
 To calculate the average performance we divide the total float operations by the total CUDA time, as a higher value indicate a higher use of the compute queue.
