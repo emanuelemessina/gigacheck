@@ -87,7 +87,6 @@ The problem of this algorithm is that it requires 7 temporary matrices, for whic
 
 In order to compare the two options among them and with the traditional algorithm, we considered the case described in figure~\ref{img:matmul-2x2-normal}, where A and B do not fit on GPU memory, but they fit if they are divided into 4 blocks.
 
-\img{matmul-2x2-normal}{.5\linewidth}{a product of 2x2 matrices with the traditional algorithm}
 When using Strassen algorithm, the product would be as described in figure~\ref{img:matmul-2x2-strassen}.
 
 As visible in figure~\ref{img:matmul-flow-normal}, the traditional algorithm requires 20 memory transfers, to load the blocks of A and B, and to offload C when computed.
