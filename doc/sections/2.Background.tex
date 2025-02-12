@@ -226,7 +226,7 @@ This is however limited by the restrictions imposed by the scheduler:
 This means that calling operations in a breadth-first approach (eg. $kernel_{stream1} \rightarrow kernel_{stream 2} \rightarrow D2H_{stream 1} \rightarrow D2H_{stream 2}$) may lead to $D2H_{stream 1}$ having to wait for the completion of $kernel_{stream 2}$ before starting.
 If instead operations are called with a depth-first approach (eg. $kernel_{stream1} \rightarrow D2H_{stream 1}  \rightarrow kernel_{stream 2}\rightarrow D2H_{stream 2}$), then the risk does not exist.
 
-In our project, we paid attention to always schedule operations in a depth-first approach
+In our project, we paid attention to always schedule operations in a depth-first approach.
 
 \subsection{Tiled matrix multiplication}
 
