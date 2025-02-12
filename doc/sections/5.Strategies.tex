@@ -27,9 +27,11 @@ This is the naive approach: the GPU memory is divided into 3 blocks: A, B and C.
 At every product, the iteration loads A and B in parallel, then sums the product into C.
 Whenever all the multiplications for a block of C are done, the block itself is unloaded to the CPU memory, while in the meantime the next A and B can start loading.
 
-A timing diagram of this strategy can be seen in figure~\ref{}.
+A timing diagram of this strategy can be seen in figure~\ref{img:strategies-timing-diagram} (diagram S1).
 
-\img{strategy-1}{.5\linewidth}{high-level view of the algorithm for strategy 1}
+\img{strategy-1}{.5\linewidth}{pseudocode of the algorithm for strategy 1}
+
+\img{strategies-timing-diagram}{.8\linewidth}{the timing diagram for our strategies, including the best (S4b) and worst (S4w) cases for strategy 4. Timings are scaled based on the block size reduction. The different number of blocks computed represents a computation of a similar number of elements, with S2 and S4 computing about $1.2$ times what is computed by S1 and S3}
 
 \subsection{Strategy 2: double buffer for A and B}
 
@@ -44,9 +46,9 @@ At the same time, C can compute the product on A and B.
 When both the new loading and the product are finished, the buffers are swapped: C can immediately start multiplying A' and B', while A and B load the next block.
 This allows to overlap the H2D and compute queues in the time when the ``offline'' A and B are loading.
 
-Figure~\ref{} shows the timing relative to this strategy.
+Figure~\ref{img:strategies-timing-diagram} (diagram S2) shows the timing relative to this strategy.
 
-\img{strategy-2}{.5\linewidth}{high-level view of the algorithm for strategy 2}
+\img{strategy-2}{.5\linewidth}{pseudocode of the algorithm for strategy 2}
 
 \subsection{Strategy 3: double buffer for A, B and C}
 
@@ -59,9 +61,9 @@ This ideally allows the compute stream (the bottleneck of the complex task of ma
 
 Differently from strategy 2, however, the gained parallelism only occurs once every \texttt{num\_split\_common\_dim} iterations: this fact makes the speedup less impactful, with the risk of it being shadowed by the reduction in block sizes required to fit C' in the GPU memory, that can lead to more multiplications required.
 
-Figure~\ref{} displays the timing diagram, in the optimal case when the addition of C' does not require more multiplications.
+Figure~\ref{img:strategies-timing-diagram} (diagram S3) displays the timing diagram, in the optimal case when the addition of C' does not require more multiplications.
 
-\img{strategy-3}{.5\linewidth}{high-level view of the algorithm for strategy 3}
+\img{strategy-3}{.5\linewidth}{pseudocode of the algorithm for strategy 3}
 
 \subsection{Strategy 4: double concurrent product}
 
@@ -73,9 +75,9 @@ Strategy 4 uses the buffers C and C' to compute a block of the final matrix into
 Using this method, the two products multiply the same block of A with shifted blocks of C: therefore, we can use just 3 buffers for the operands: A, B and B'.
 This increases the size of each buffer, and reduces the required memory copies.
 
-For this final strategy we draw the timing diagram for the two cases: if the parallel multiplications hypothesis holds (figure~\ref{}) or if it is wrong (figure~\ref{}).
+For this final strategy we drew the timing diagram for the two cases, as visible in figure~\ref{img:strategies-timing-diagram}: if the parallel multiplications hypothesis holds (diagram S4b) or if it is wrong (S4w).
 
-\img{strategy-4}{.5\linewidth}{high-level view of the algorithm for strategy 4}
+\img{strategy-4}{.5\linewidth}{pseudocode of the algorithm for strategy 4}
 
 \subsection{Strassen algorithm}
 
