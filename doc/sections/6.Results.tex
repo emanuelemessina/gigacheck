@@ -43,7 +43,7 @@ We launched the same multiplication for the four different strategies, with inpu
 	\includegraphics[width=\textwidth]{images/result_s4}
 	\caption*{Strategy 4}
 	\endminipage\hfill
-	\caption{\centering results for the different strategies}\label{immediate-users-interviews}
+	\caption{\centering results for the different strategies}\label{img:results-strategies}
 \end{figure}
 
 We see that, in comparison to strategy 1, strategy 2 has a slightly worse performance and intensity, but takes less overall time, as conjectured in \ref{img:strategies-timing-diagram}.
@@ -53,3 +53,17 @@ Strategy 3 has a similar performance to strategy 1 while taking less time, but a
 Strategy 4 is very similar to strategy 3 as expected, revealing that our concurrent kernel hypotesis was true.
 
 TODO: considerazioni
+
+
+\begin{figure}[h]
+	\centering
+	\minipage{.49\textwidth}
+	\includegraphics[width=\textwidth]{images/roofline-overview}
+	\caption*{(a)}
+	\endminipage\hfill
+	\minipage{.49\textwidth}
+	\includegraphics[width=\textwidth]{images/roofline-zoom.png}
+	\caption*{(b)}
+	\endminipage\hfill
+	\caption{\centering Roofline model, (a) complete and (b) zoomed on the area where our program stands}\label{img:roofline-model}
+\end{figure}
