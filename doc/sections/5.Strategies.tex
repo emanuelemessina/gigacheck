@@ -82,7 +82,7 @@ When using Strassen algorithm, the product would be as described in figure~\ref{
 
 As visible in figure~\ref{img:matmul-flow-normal}, the traditional algorithm requires 20 memory transfers, to load the blocks of A and B, and to offload C when computed.
 This example assumes that the GPU is divided into 3 blocks of equal size (the 3 squares on top of each other, in the image)
-\img{matmul-flow-normal}{\linewidth}{The series of load/calc/unload operations for a 2x2 product with the traditional algorithm}
+\img{matmul-flow-normal}{\linewidth}{The series of load/calc/unload operations for a 2x2 product with the traditional algorithm. The colors indicate what has been loaded (red), computed (blue), offloaded (green) or left unchanged (black) from the previous step. An apex indicates that the result is partial.}
 If we want to use Strassen algorithm with blocks of the same size, figure~\ref{img:matmul-flow-strassen-more-transfers} reveals that 45 memory transfers are required, because the program needs to offload temporary sums and matrices to make space for the other values.
 \img{matmul-flow-strassen-more-transfers}{\linewidth}{The series of load/calc/unload operations for a 2x2 product with Strassen algorithm, if we want to have the GPU memory divided in just 3 blocks}
 If instead we decide to have more blocks for the Strassen algorithm, in order to avoid offloading temporary results, we would need 21 memory transfers, as shown in figure~\ref{img:matmul-flow-strassen-more-memory}.
