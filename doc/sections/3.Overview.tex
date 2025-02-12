@@ -1,5 +1,25 @@
 \section{Overview of the Algorithm}
 \label{sec:overview}
 
-TODO spiegare che la matrice `e presa, splittata, moltiplicata, error-corrected, som-
-mata, riscritta
+Given the matrices $A$ and $B$, our program processes them via to the following steps:
+\begin{itemize}
+	\itemsep 0em
+	\item Choose if and how they need to be split
+	\item For each block of the final matrix:
+	      \begin{itemize}[topsep=0pt]
+		      \itemsep 0em
+		      \item Set $C$ to a matrix of zeros
+		      \item For each couple of blocks from $A$ and $B$ that is required to compute the current block of $C$:
+		            \begin{itemize}[topsep=0pt]
+			            \itemsep 0em
+			            \item Load the block of $A$
+			            \item Load the block of $B$
+			            \item Add $AB$ to the current $C$
+			            \item Add errors to $C$
+			            \item Find and correct the errors on $C$
+		            \end{itemize}
+		      \item Unload $C$ to the RAM
+	      \end{itemize}
+\end{itemize}
+
+All the steps are described more in details in the following paragraphs.
