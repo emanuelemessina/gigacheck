@@ -8,7 +8,7 @@ The checksums are computed by a single kernel, that based on a parameter compute
 For row checksums, a thread block is generated for each row, with a set of threads that initially sum a portion of the row, in a linear way.
 After that, the different threads of the block organize themselves to sum all the partial sums in a dichotomous way.
 
-Similarly, column checksums generate a thread block for each column, performing the same operations in the opposite direction.
+Similarly, column checksums generate a thread block for each column, performing the same operations in the orthogonal direction.
 
 After the computation, the kernel is able to store the checksum either in the last row or column of the matrix, or into a separate vector, in order to avoid overriding the previous checksums (the control checksums of C).
 
@@ -38,7 +38,6 @@ A kernel is then run to find mismatches between the control checksums (the ones 
 
 The mismatches are then compared to check if errors are present, and if they are collinear (otherwhise, they are not correctable).
 If the errors are correctable, they are corrected by using the control checksums.
-If they are not correctable, or there are errors on the checksums, then the callee is notified.
-Errors on checksums are not corrected, since it did not cost much computation to just re-compute the checksums in the wrong direction from scratch. 
+If they are not correctable, or there are errors on the checksums, then the caller is notified.
 
 \img{edc-pseudocode}{0.7\linewidth}{the pseudocode of function that detects and corrects the errors (find\_mismatches is a GPU kernel, while the rest is executed on CPU)}
