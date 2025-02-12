@@ -28,6 +28,7 @@
 *.pdf
 *.snm
 *.synctex.gz
+*.synctex(busy)
 *.vrb
 *.xdv
 
