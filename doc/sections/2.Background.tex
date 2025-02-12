@@ -201,3 +201,41 @@ At the beginning we believed that this algorithm could be useful to speed up our
 \img{matmul-2x2-normal}{.5\linewidth}{a product of 2x2 matrices with the traditional algorithm}
 \img{matmul-2x2-strassen}{.6\linewidth}{A product of 2x2 matrices with the Strassen algorithm}
 \subsection{CUDA queues}
+
+\subsection{Tiled matrix multiplication}
+
+The tiled matrix multiplication is an algorithm that implements the traditional matrix multiplication algorithm, by exploiting the shared memory of a GPU to speed up the process.
+
+\subsubsection{Without tiling}
+
+The standard algorithm without tiling would have independent threads that proceed as follows, for each index $k$ required to compute $C_{rc}$:
+\begin{itemize}
+	\itemsep 0em
+	\item Load $A_{rk}$ from global memory
+	\item Load $B_{kc}$ from global memory
+	\item Compute $A_{rk} \cdot B_{kc}$
+	\item Add it to a local variable
+	\item When the product is finished, store it to $C_{rc}$
+\end{itemize}
+
+When multiplying a matrix $m \times n$ by a matrix $n \times q$, this approach requires $2 \cdot m \cdot n \cdot q$ loads from global memory.
+
+\subsubsection{With tiling}
+
+With the tiling approach, we define \textit{tile} a square region of $T \times T$ cells.
+Both the result matrix and the operands are split into tiles of the same size.
+A tile of the result matrix is computed by a block of threads, leveraging shared memory.
+Different tiles of the result matrix are however computed independently.
+
+Among the thread block $C_{RC}$, the thread that has to compute $C_{rc}$ ($r$ and $c$ are indices local to the tile) performs the following for each tile $t$ necessary for the computation:
+\begin{itemize}
+	\itemsep 0em
+	\item Loads from global memory to shared memory the value $A_{rc}$ of the tile $A_{Rt}$
+	\item Loads from global memory to shared memory the value $B_{rc}$ of the tile $B_{tC}$
+	\item Waits for the other threads to load all their values to shared memory
+	\item Computes and sums to a local variable $A_{rk} \cdot B_{kc}$ for $k$ going from $0$ to $T$ (excluded), reading the values from the shared memory
+	\item When the product is finished, stores it to $C_{rc}$
+\end{itemize}
+
+This way, the number of global memory reads is reduced by a factor of $T$, thanks to the fact that each thread in the block only loads $2$ values per tile.
+It then relies on the other threads to load the other $2\cdot(T-1)$ that it needs.
