@@ -1,66 +1,13 @@
 #pragma once
 
-#include "cuda.cuh"
-#include "iomod.h"
 #include <chrono>
+#include <cuda_runtime.h>
 #include <functional>
 #include <optional>
+#include <stdint.h>
+#include <string>
+#include <vector>
 
-inline void print_time(long int nanoseconds)
-{
-    if (nanoseconds >= 1'000'000'000)
-    {
-        double seconds = nanoseconds / 1'000'000'000.0;
-        COUT << seconds << " s";
-    }
-    else if (nanoseconds >= 1'000'000)
-    {
-        double milliseconds = nanoseconds / 1'000'000.0;
-        COUT << milliseconds << " ms";
-    }
-    else if (nanoseconds >= 1'000)
-    {
-        double microseconds = nanoseconds / 1'000.0;
-        COUT << microseconds << " us";
-    }
-    else
-    {
-        COUT << nanoseconds << " ns";
-    }
-}
-
-class AggregatedTimer
-{
-  public:
-    AggregatedTimer(const std::string&& blockName) : name(blockName)
-    {
-    }
-
-    void pushDuration(signed long duration)
-    {
-        durations.push_back(duration);
-    }
-
-    void aggregate()
-    {
-        auto total = 0;
-
-        for (auto duration : durations)
-        {
-            total += duration;
-        }
-
-        COUT << "\t🔄️  " << CYAN << name << RESET << ": ";
-
-        print_time(total);
-
-        COUT << ENDL;
-    }
-
-  private:
-    std::string name;
-    std::vector<signed long> durations;
-};
 
 enum TimerPrintMode
 {
@@ -71,81 +18,41 @@ enum TimerPrintMode
 class ScopedTimer
 {
   public:
-    ScopedTimer(const std::string&& blockName, TimerPrintMode mode) : name(blockName), mode(mode)
-    {
-        start();
-
-        if (mode == ENCLOSED)
-            COUT << YELLOW << "⏱️  [" << name << "]" << RESET << ENDL;
-    }
-
-    ScopedTimer(AggregatedTimer* aggregatedTimer, cudaStream_t* stream_ptr = nullptr) : aggregatedTimer(aggregatedTimer), stream_ptr(stream_ptr)
-    {
-        start();
-    }
-
-    ~ScopedTimer()
-    {
-        auto endpoint = std::chrono::high_resolution_clock::now();
-        auto nanoseconds = std::chrono::duration_cast<std::chrono::nanoseconds>(endpoint - startpoint).count();
-
-        if (aggregatedTimer)
-        {
-            aggregatedTimer->pushDuration(nanoseconds);
-            return;
-        }
-
-        if (mode == ENCLOSED)
-            COUT << YELLOW << "🏁 [" << name << "] " << RESET;
-        else
-            COUT << "\t➡️  " << CYAN << name << RESET << ": ";
-
-        print_time(nanoseconds);
-
-        if (mode == ENCLOSED)
-            COUT << "\n";
-
-        COUT << ENDL;
-    }
+    ScopedTimer(const std::string&& blockName, TimerPrintMode mode, long* nanoseconds_out = nullptr);
+    ~ScopedTimer();
 
   private:
-    void start()
-    {
-        if (stream_ptr)
-        {
-            cudaEventCreate(&e_stop);
-            CUDA_CREATE_RECORD_EVENT(e_start, *stream_ptr);
-            CUDA_CHECK
-        }
-        else
-            startpoint = std::chrono::high_resolution_clock::now();
-    }
+    void start();
 
-    signed long stop()
-    {
-        if (stream_ptr)
-        {
-            float time = 0;
-            cudaEventRecord(e_stop, 0);
-            cudaEventSynchronize(e_stop);
-            cudaEventElapsedTime(&time, e_start, e_stop);
-            cudaEventDestroy(e_start);
-            cudaEventDestroy(e_stop);
-            CUDA_CHECK
-            return static_cast<signed long>(time * 1'000'000);
-        }
-        else
-        {
-            auto endpoint = std::chrono::high_resolution_clock::now();
-            auto nanoseconds = std::chrono::duration_cast<std::chrono::nanoseconds>(endpoint - startpoint).count();
-            return nanoseconds;
-        }
-    }
+    signed long stop();
 
     std::string name;
     TimerPrintMode mode;
     std::chrono::high_resolution_clock::time_point startpoint;
-    cudaEvent_t e_start, e_stop;
-    cudaStream_t* stream_ptr = nullptr;
-    AggregatedTimer* aggregatedTimer = nullptr;
+    long* nanoseconds_out = nullptr;
+};
+
+class CudaAggregateTimer
+{
+  public:
+    CudaAggregateTimer()
+    {
+    }
+    ~CudaAggregateTimer();
+
+    void start();
+
+    /**
+     * @brief No other calls to start must be issued before a stop!
+     *
+     */
+    void stop();
+    /**
+     * @brief This synchronizes the device. Call this only at the end of the program!
+     *
+     */
+    uint64_t aggregate();
+
+  private:
+    std::vector<std::pair<cudaEvent_t, cudaEvent_t>> events;
 };

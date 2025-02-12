@@ -1,0 +1,192 @@
+\section{Background Theory}
+\label{sec:background}
+
+\subsection{ABFT matrix multiplication}
+
+The basic idea behind Algorithm-Based Fault Tolerant (ABFT) matrix multiplication
+is to use checksums to verify the correctness of the computation.
+The following paragraphs illustrate the steps we perform:
+
+\subsubsection{Checksum Calculation}
+Let \( A \) be an \( m \times n \) matrix,
+\( B \) be an \( n \times q \) matrix,
+and \( C \) be the resulting \( m \times q \) matrix
+from the multiplication \( C = A B \).
+Before performing the matrix multiplication,
+we calculate the column checksum of \( A \) and the row checksum of \( B \):
+
+\[
+  \textnormal{Column checksum of } A: \quad
+  \mathbf{c}_A =
+  \left[
+    \sum_{i=1}^{n} a_{i1},
+    \sum_{i=1}^{n} a_{i2},
+    \ldots, \sum_{i=1}^{n} a_{in}
+  \right]
+\]
+
+\[
+  \textnormal{Row checksum of } B: \quad
+  \mathbf{r}_B = \left[ \sum_{j=1}^{n} b_{1j}, \sum_{j=1}^{n} b_{2j}, \ldots, \sum_{j=1}^{n} b_{nj} \right]^T
+\]
+
+\textit{
+  The row checksum of a matrix is a column vector where each element
+  is the sum of the elements in the corresponding row of the matrix.
+  Similarly, the column checksum is a row vector where
+each element is the sum of the elements in the corresponding column of the matrix.}
+
+\subsubsection{Augmented Matrices}
+
+We then create augmented matrices $A_{c}$ (\( m+1 \times n \)) and $B_{r}$ (\( n \times q+1 \))
+by appending the column and row checksum vectors, respectively, to the original matrices:
+Thus we get:
+\[
+  A_{c} =
+  \left[
+    \begin{array}{c}
+      A \\
+      \midrule
+      \mathbf{c}_A
+    \end{array}
+  \right]
+  \quad
+  ,
+  \quad
+  B_{r} = \left[
+    \begin{array}{c|c}
+      B &
+      \mathbf{r}_B
+    \end{array}
+  \right]
+\]
+\subsubsection{Multiplication}
+We multiply $ A_{c} $ and $ B_{r} $ together, yielding
+\[
+  C_{cr} = A_{c} B_{r} = \left[
+    \begin{array}{c|c}
+      A B & A \, \mathbf{r}_B \\
+      \hline
+      \mathbf{c}_A \, B & \mathbf{c}_A \, \mathbf{r}_B
+    \end{array}
+  \right]
+\]
+We see that the original product is preserved
+in the upper left block,
+while the other blocks contain checksum information.
+
+\subsubsection{Checksum Verification}
+Considering the column and row checksums of the upper left block of
+the resulting matrix \( C_{cr} \), the following properties hold:
+
+\[
+  \mathbf{c}_{AB} = \left[\mathbf{c}_A \, B \right]
+  \quad
+  ,
+  \quad
+  \mathbf{r}_{AB} = \left[A \, \mathbf{r}_B \right]
+\]
+
+The proof is trivial.
+
+This is the property that we ultimately exploit to correct errors in the computation,
+because if the upper block returned to us is corrupted,
+then we can compute its checksums (we will call them control checksums)
+and compare them against the peripheral blocks to at least detect the corruption of the result.
+
+In general, the column checksum of the upper blocks of the augmented result
+is equal to the last row of the augmented result, and the row cheksum of the left blocks of the augmented result
+is equal to the last column the augmented result. In formulas:
+
+\[
+  \mathbf{c}_{\text{control}} = \mathbf{c}_{
+    \begin{array}{c|c}
+      A B & A \, \mathbf{r}_B
+    \end{array}
+  } =
+  \left[
+    \begin{array}{c|c}
+      \mathbf{c}_A \, B &
+      \mathbf{c}_A \, \mathbf{r}_B
+    \end{array}
+  \right]
+\]
+
+\[
+  \mathbf{r}_{\text{control}} = \mathbf{r}_{
+    \begin{array}{c}
+      AB \\
+      \midrule
+      \mathbf{c}_A \, B
+  \end{array}} =
+  \left[
+    \begin{array}{c}
+      A \, \mathbf{r}_B \\
+      \hline
+      \mathbf{c}_A \, \mathbf{r}_B
+    \end{array}
+  \right]
+\]
+
+As we can see, the last element of each control checksum, is the same,
+and also corresponds exactly to $C_{cr}\left[m+1,q+1\right]$.
+This element is the one that allows us to detect errors
+in the checksum blocks themselves, generalizing the approach to the entire
+augmented result matrix and not just the upper left block containing the original product.
+
+Wherever there is a mismatch between the returned checksum blocks and the associated computed control checksum,
+we know: first, that there is an error in $C_{cr}$; and second, one coordinate of the error.
+
+In the case of a single error inside $C_{cr}$,
+there would be a single mismatch in both
+$\mathbf{r}_{\text{control}}$ and $\mathbf{c}_{\text{control}}$.
+The item indexes on the control checksum vectors
+give the coordinates of the error inside the result matrix.
+
+If there are multiple errors, they can be collinear or not.
+By collinear errors we mean errors that share one coordinate,
+or equivalently stated,
+they are arranged on the same column or row in the result matrix.
+Collinear errors can be individually detected and isolated.
+
+The presence of at least two non collinear errors
+can only be detected, but the exact coordinates of the individual errors
+cannot be obtained.
+
+\img{correctable}{.5\linewidth}{detectable errors cause exactly one mismatch in at least one of the control checksums.}
+
+\img{uncorrectable}{.5\linewidth}{an error set that causes more than one mismatch in both checksums does not allow us to recover the individual error placement inside the matrix, since the configuration is ambiguous.}
+
+\img{checkerr}{.5\linewidth}{errors in the checksum blocks themselves cause a mismatch in the shared item (the last item), and so can be detected as any other detectable error.}
+
+\subsubsection{Error Correction}
+
+We can only correct detectable errors, i.e. the ones we can isolate from the coordinates obtained by the checksum mismatches.
+
+For a given error $C_e$ of coordinates $(i,j)$ in $C^* := C_{cr}$, we must choose one of the two control checksums and the associated checksum block in $C_{cr}$ to recover the original result value.
+To do this, we simply enstablish along which axis the errors are collinear, and use the checksum of the opposite axis (the one which contains more than one mismatch) to compute the correction values.
+For example, if the errors are arranged on a column, the column control checksum will contain a single mismatch while the row control checksum will contain as many mismatches as the error count, thus we have to use the row checksum because it contains distinct correction values for each error.
+Of course, if there is only a single error present, one control checksum is as good as the other.
+We can discard errors in the checksum blocks
+as they don't corrupt the original multiplication result.
+Actually, though, if we detect errors in the checksum blocks
+we recalculate them after correcting the errors in the result block,
+because we still need the checksum blocks
+when using buffering strategies as discussed in \hyperref[sec:strategies]{Section 5}.
+
+For column-collinear errors, the correction formula is:
+\[
+  C_{i,j} = C^*_{i,q+1} - \mathbf{r}_{\text{control}_{i}} + C_e
+\]
+For row collinear errors, the correction formula is:
+\[
+  C_{i,j} = C^*_{m+1,j} - \mathbf{c}_{\text{control}_{j}} + C_e
+\]
+
+These formulas are quite easy to derive by solving a system of two equations:
+the equality between a control checksum and the associated checksum block in $C^*$ when no error is present,
+and the actual control checksum computation equation where the error $C_e$ shows up.
+
+\subsection{Strassen}
+
+TODO spiegare Strassen

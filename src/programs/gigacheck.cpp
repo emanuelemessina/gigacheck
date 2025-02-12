@@ -76,11 +76,20 @@ namespace programs
             matrix::print(B, rb, cb, "B");
         }
 
+        long nanoseconds = 0;
+
         {
-            ScopedTimer timer("GPU mul", POST);
+            ScopedTimer timer("GPU mul", POST, &nanoseconds);
+
+            if (globals::noEDC) // skip error generation
+                errors_count = 0;
 
             int splits_square, splits;
-            matrix::calc_splits(strategy, ra, ca, cb, &splits, &splits_square);
+            if (!matrix::calc_splits(strategy, ra, ca, cb, &splits, &splits_square))
+            {
+                CERR << RED << "Not enough device memory to store the checksums, aborting." << ENDL;
+                return 1;
+            }
 
             const int total_blocks = splits * splits_square * splits_square;
             const int limit_x = CEIL_DIV(cc, splits_square) + 1;
@@ -114,10 +123,7 @@ namespace programs
                         if (error_points.insert(point).second)
                         {
                             float val;
-                            do
-                            {
-                                val = random_float(globals::useIntValues);
-                            } while (globals::useIntValues && std::find(error_values, error_values + error_points.size(), val) != error_values + error_points.size()); // avoid same val if using ints (debug)
+                            val = random_float(globals::useIntValues) + 1; // avoid 0 errors and threshold
 
                             int idx = error_points.size() - 1;
                             error_xs[idx] = x;
@@ -132,7 +138,12 @@ namespace programs
                 per_block_error_ys.push_back(error_ys);
             }
 
+            globals::profiling::totalTimer = CudaAggregateTimer();
+            globals::profiling::totalTimer.start();
+
             cuda::EDCResult edc_res = cuda::matmul_ec(A, B, C, ra, ca, cb, errors_count, per_block_error_xs.data(), per_block_error_ys.data(), per_block_error_values.data(), strategy);
+
+            globals::profiling::totalTimer.stop();
 
             if (edc_res == cuda::UNCORRECTABLE_ERROR)
             {
@@ -151,6 +162,23 @@ namespace programs
                 free(per_block_error_xs[i]);
                 free(per_block_error_ys[i]);
             }
+        }
+
+        // calculate performance metrics
+
+        {
+            float totalCudaTime = globals::profiling::totalTimer.aggregate();
+            float totalCudaCpTime = globals::profiling::memcpyTimer.aggregate();
+            COUT << BOLD << "CPU transfers: " << RESET << (float)(totalCudaCpTime / (double)1000) << " s" << ENDL;
+            float kernelNetTime = totalCudaTime - totalCudaCpTime;
+            float seconds = kernelNetTime / (double)1000;
+            COUT << BOLD << "Kernels effective time: " << RESET << seconds << " s" << ENDL;
+            float gigaflops = globals::profiling::flop_counter / (double)pow(1000, 3);
+            float performance = gigaflops / seconds;
+            COUT << BOLD << "Total program performance: " << RESET << performance << " GFLOPs/s" << ENDL;
+            uint64_t bytes = globals::profiling::transfer_counter * (uint64_t)sizeof(float);
+            float intensity = globals::profiling::flop_counter / (double)bytes;
+            COUT << BOLD << "Total program intensity: " << RESET << intensity << " FLOPs/B" << ENDL;
         }
 
         int result = 0;

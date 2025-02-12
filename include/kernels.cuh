@@ -2,6 +2,7 @@
 
 #include "globals.h"
 #include "mathdef.h"
+#include <math.h>
 
 #define tileDim dim3(globals::tileSide, globals::tileSide)
 
@@ -23,6 +24,11 @@ inline int linearDimToBytes(int dim)
 inline int dim2ToBytes(dim3 dim2)
 {
     return linearDimToBytes(dim2.x) * dim2.y;
+}
+
+inline uint64_t dimsToN(dim3 gridDim, dim3 blockDim)
+{
+    return gridDim.x * gridDim.y * gridDim.z * blockDim.x + blockDim.y * blockDim.z;
 }
 
 enum ReductionDirection
@@ -84,4 +90,32 @@ namespace kernels
      * @param[out] error_flag Will be set to 1 if there is an internal kernel error (eg. encountered more mismatches than allowed).
      */
     __global__ void find_checksum_mismatches(const float* ec_matrix, int rows, int cols, float* control_checksum, ChecksumsToCompare checksums_to_compare, int* mismatch_count, int* mismatch_indexes, int* error_flag);
+
+    /**
+     * @brief This namespace contains a homonimous function for each kernel, that returns the number of flops and transfers for that kernel as a pair.
+     *
+     */
+    namespace metrics
+    {
+        inline std::pair<uint64_t, uint64_t> compute_checksums(uint64_t N, uint64_t blockdim)
+        {
+            uint64_t flops = N * (N / blockdim) * 1 + N * (uint64_t)log2(blockdim) * 1;
+            uint64_t transfers = N * (N / blockdim) * 1 + 1;
+            return std::make_pair(flops, transfers);
+        }
+
+        inline std::pair<uint64_t, uint64_t> find_checksum_mismatches(uint64_t N)
+        {
+            uint64_t flops = N * (2 + 2);
+            uint64_t transfers = N * 2 + 1;
+            return std::make_pair(flops, transfers);
+        }
+
+        inline std::pair<uint64_t, uint64_t> tiled_matmul(uint64_t N, uint64_t blockdim)
+        {
+            uint64_t flops = N * (N / blockdim) * (blockdim * 2) + N * 1;
+            uint64_t transfers = N * (N / blockdim) * 2 + N * 1;
+            return std::make_pair(flops, transfers);
+        }
+    }
 }

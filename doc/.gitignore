@@ -1,0 +1,47 @@
+# Compiled files
+*.aux
+*.bbl
+*.blg
+*.brf
+*.fls
+*.fdb_latexmk
+*.glo
+*.idx
+*.ilg
+*.ind
+*.lof
+*.log
+*.lot
+*.out
+*.toc
+*.acn
+*.acr
+*.alg
+*.dvi
+*.glg
+*.gls
+*.ist
+*.maf
+*.mtc
+*.mtc0
+*.nav
+*.pdf
+*.snm
+*.synctex.gz
+*.vrb
+*.xdv
+
+# Generated directories
+_build/
+_tex2pdf/
+*.run.xml
+
+# Editor backup files
+*~
+*.swp
+*.bak
+*.backup
+*.tmp
+*.temp
+*.tmp.*
+*.temp.*

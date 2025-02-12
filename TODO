@@ -1,5 +1,6 @@
 By priority:
 
+- global cuda debug print build option
 - profile everything
 - can further optimize block sizes, memory... ?
 

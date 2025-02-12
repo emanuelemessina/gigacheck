@@ -3,9 +3,7 @@
         {
             "name": "(WSL) g++",
             "includePath": [
-                // local
                 "include/**",
-                // g++
                 "/usr/include",
                 "/usr/local/include",
                 "/usr/include/c++/13",
@@ -13,14 +11,14 @@
                 "/usr/include/c++/13/backward",
                 "/usr/lib/gcc/x86_64-linux-gnu/13/include",
                 "/usr/include/x86_64-linux-gnu",
-                // cuda
                 "/usr/local/cuda/include"
             ],
             "defines": [],
             "compilerPath": "/usr/bin/g++",
             "cStandard": "c17",
             "cppStandard": "c++20",
-            "intelliSenseMode": "linux-gcc-x64"
+            "intelliSenseMode": "linux-gcc-x64",
+            "configurationProvider": "ms-vscode.cmake-tools"
         }
     ],
     "version": 4

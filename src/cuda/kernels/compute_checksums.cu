@@ -14,9 +14,9 @@ __global__ void kernels::compute_checksums(float* matrix, int rows, int cols, Re
     int limit_reduction = reduction_direction == ReductionDirection::ALONG_COL ? rows : cols;
 
     // this thread accumulates values in blockdim offsets along the reduction direction
-    for (int i = index_reduction; i < limit_reduction; i += blockDim_reduction)
+    for (int i = index_reduction; i < limit_reduction; i += blockDim_reduction) // N/blockdim iterations
     {
-        sum += reduction_direction == ReductionDirection::ALONG_COL ? matrix[i * cols + index_orthogonal] : matrix[index_orthogonal * (cols + 1) + i];
+        sum += reduction_direction == ReductionDirection::ALONG_COL ? matrix[i * cols + index_orthogonal] : matrix[index_orthogonal * (cols + 1) + i]; // 1 transf, 1 op
     }
 
     // this thread stores his partial result into shared memory at his relative offset
@@ -24,11 +24,11 @@ __global__ void kernels::compute_checksums(float* matrix, int rows, int cols, Re
     __syncthreads(); // other threads do the same for their relative offset, we wait for all threads to finish
 
     // this threads performs reduction over the shared memory vector
-    for (int stride = blockDim_reduction / 2; stride > 0; stride /= 2)
+    for (int stride = blockDim_reduction / 2; stride > 0; stride /= 2) // log2(blockdim) iterations
     {
         if (index_reduction < stride && index_reduction + stride < limit_reduction)
         {
-            shared_data[index_reduction] += shared_data[index_reduction + stride];
+            shared_data[index_reduction] += shared_data[index_reduction + stride]; // 1 op
         }
         __syncthreads(); // other threads do the same
     }
@@ -38,17 +38,20 @@ __global__ void kernels::compute_checksums(float* matrix, int rows, int cols, Re
     {
         if (checksum != nullptr)
         {
-            checksum[index_orthogonal] = shared_data[0];
+            checksum[index_orthogonal] = shared_data[0]; // in the control checksum case: 1 transf
             return;
-        }
+        } // in the load input checksums case
 
         if (reduction_direction == ReductionDirection::ALONG_COL)
         {
-            matrix[rows * cols + index_orthogonal] = shared_data[0]; // last row for column checksums
+            matrix[rows * cols + index_orthogonal] = shared_data[0]; // last row for column checksums // 1 transf
         }
         else
         {
-            matrix[index_orthogonal * (cols + 1) + cols] = shared_data[0]; // last column for row checksums
+            matrix[index_orthogonal * (cols + 1) + cols] = shared_data[0]; // last column for row checksums // 1 transf
         }
     }
 }
+
+// transfers: N*(N/blockdim)*1 + 1
+// ops: N*(N/blockdim)*1 + N*log2(blockdim)*1
