@@ -22,10 +22,29 @@ To calculate the total intensity we divide the total float operations by the tot
 With that said, we hereby present our considerations on the obtained results.
 We launched the same multiplication for the four different strategies, with inputs $20000 \times 2000$ and $2000 \times 2000$ (around 320MB of required memory), with the available global memory constrained to 10MB.
 
-\img{result_s1}{.5\linewidth}{strategy 1}
-\img{result_s2}{.5\linewidth}{strategy 2}
-\img{result_s3}{.5\linewidth}{strategy 3}
-\img{result_s4}{.5\linewidth}{strategy 4}
+\begin{figure}[h]
+	\centering
+	\minipage{.481\textwidth}
+	\includegraphics[width=\textwidth]{images/result_s1}
+	\caption*{Strategy 1}
+	\endminipage\hfill
+	\minipage{.49\textwidth}
+	\includegraphics[width=\textwidth]{images/result_s2}
+	\caption*{Strategy 2}
+	\endminipage\hfill
+	\linebreak
+	\vspace{.02\textwidth}
+	\linebreak
+	\minipage{.481\textwidth}
+	\includegraphics[width=\textwidth]{images/result_s3}
+	\caption*{Strategy 3}
+	\endminipage\hfill
+	\minipage{.49\textwidth}
+	\includegraphics[width=\textwidth]{images/result_s4}
+	\caption*{Strategy 4}
+	\endminipage\hfill
+	\caption{\centering results for the different strategies}\label{immediate-users-interviews}
+\end{figure}
 
 We see that, in comparison to strategy 1, strategy 2 has a slightly worse performance and intensity, but takes less overall time, as conjectured in \ref{img:strategies-timing-diagram}.
 
