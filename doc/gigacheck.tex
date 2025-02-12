@@ -6,6 +6,15 @@
 \usepackage{hyperref}
 \usepackage{amsmath}
 \usepackage{booktabs}
+\usepackage[justification=centering]{caption}
+
+\newcommand{\img}[3]{
+  \begin{figure}[h]
+    \centering
+    \includegraphics[width=#2]{images/#1}
+    \caption{#3}\label{img:#1}
+  \end{figure}
+}
 
 \title{Gigacheck}
 \author{Emanuele Messina, Francesco Risso}

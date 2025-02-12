@@ -152,7 +152,11 @@ These are the steps we perform:
     can only be detected, but the exact coordinates of the individual errors
     cannot be obtained.
 
-    TODO IMMAGINI CONFIG ERRORI
+    \img{correctable}{.5\linewidth}{Detectable errors cause exactly one mismatch in at least one of the control checksums.}
+
+    \img{uncorrectable}{.5\linewidth}{An error set that cause more than one mismatch in both checksums does not allow us to recover the individual error placement inside the matrix, since the configuration is ambiguous.}
+
+    \img{checkerr}{.5\linewidth}{Errors in the checksum blocks themselves cause a mismatch in the shared item (the last item), and so can be detected as any other detectable error.}
 
   \item \textbf{Error Correction}:
 
