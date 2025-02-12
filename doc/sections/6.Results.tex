@@ -17,6 +17,6 @@ As performance metrics, we used the overall execution time of the program (both 
 To calculate the total floating point operations and the associated transfers to and from global memory (to then calculate the arithmetic intensity), we manually calculated the floating point operation and associated global memory transfers for each kernel we wrote. The program registers each kernel call and add its flops and transfers to their respective counter.
 
 To calculate the effective compute time we use CUDA events to register the start and end of the program (getting the total CUDA time with respect to the default stream).
-Then, still with CUDA events, we track each cudaMemcpy time (getting the total RAM-GPU transfer time), and we subtract it from the total CUDA time (because )
+Then, still with CUDA events, we track each cudaMemcpy time (getting the total RAM-GPU transfer time), and we subtract it from the total CUDA time (because)
 
 That said, we hereby present our considerations on the obtained results.

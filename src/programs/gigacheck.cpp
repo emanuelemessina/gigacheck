@@ -167,6 +167,7 @@ namespace programs
         // calculate performance metrics
 
         {
+            float totalCudaTime = globals::profiling::totalTimer.aggregate();
             float seconds = totalCudaTime / (double)1000;
             COUT << BOLD << "Total CUDA time: " << RESET << seconds << " s" << ENDL;
             float gigaflops = globals::profiling::flop_counter / (double)pow(1000, 3);
