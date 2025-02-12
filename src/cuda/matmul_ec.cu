@@ -580,13 +580,13 @@ namespace cuda
                     {
                         if (strategy == simple || strategy == parallelMul) // load the base blocks A,B
                         {
-                            CUDA_WAIT_EVENT_DESTROY(A_can_be_overwritten, stream_A)
-                            loadcheck_input_block(OperandMatrix::A, A, dA, rows_A, cols_A, num_split_other_dim, num_split_common_dim, max_block_rows_A, max_block_cols_A, C_block_idy, block_common_id, stream_A);
-                            CUDA_CREATE_RECORD_EVENT(A_copied, stream_A);
-
                             CUDA_WAIT_EVENT_DESTROY(B_can_be_overwritten, stream_B)
                             loadcheck_input_block(OperandMatrix::B, B, dB, ROWS_B, cols_B, num_split_common_dim, num_split_other_dim, MAX_BLOCK_ROWS_B, max_block_cols_B, block_common_id, C_block_idx, stream_B);
                             CUDA_CREATE_RECORD_EVENT(B_copied, stream_B);
+
+                            CUDA_WAIT_EVENT_DESTROY(A_can_be_overwritten, stream_A)
+                            loadcheck_input_block(OperandMatrix::A, A, dA, rows_A, cols_A, num_split_other_dim, num_split_common_dim, max_block_rows_A, max_block_cols_A, C_block_idy, block_common_id, stream_A);
+                            CUDA_CREATE_RECORD_EVENT(A_copied, stream_A);
                         }
                         if (strategy == parallelMul) // load B' for parallel mul
                         {
