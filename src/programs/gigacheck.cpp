@@ -167,11 +167,7 @@ namespace programs
         // calculate performance metrics
 
         {
-            float totalCudaTime = globals::profiling::totalTimer.aggregate();
-            float totalCudaCpTime = globals::profiling::memcpyTimer.aggregate();
-            COUT << BOLD << "CPU transfers: " << RESET << (float)(totalCudaCpTime / (double)1000) << " s" << ENDL;
-            float kernelNetTime = totalCudaTime - totalCudaCpTime;
-            float seconds = kernelNetTime / (double)1000;
+            float seconds = totalCudaTime / (double)1000;
             COUT << BOLD << "Kernels effective time: " << RESET << seconds << " s" << ENDL;
             float gigaflops = globals::profiling::flop_counter / (double)pow(1000, 3);
             float performance = gigaflops / seconds;

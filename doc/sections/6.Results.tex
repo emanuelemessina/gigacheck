@@ -1,2 +1,22 @@
 \section{Results}
 \label{sec:results}
+
+We wrote a simple CLI program to evaluate the algorithm under different conditions.
+The program allows setting the input dimensions, the number of errors to introduce
+and whether they should be collinear or not,
+the simulated maximum amount of global memory, and the buffering strategy to use.
+Several minor debugging parameters can be set, but are out of the scope of this paper.
+
+We tested the four strategies on a MX130 laptop GPU, which unfortunately makes the results dependent on the current display workload, but we tried to reduce that for what it was possible.
+Another thing to consider is that display GPUs have a timeout on kernel executions, so we couldn't run tests with very large matrices, and we believe that for bigger matrices the calculated performance should increase asymptotically.
+
+For this GPU (Maxwell architecture), nvprof didn't have support for performance counters, and Nsight Compute suite was only available for the newer Ampere architecture.
+For this reason we embedded some sort of profiling in the program itself.
+As performance metrics, we used the overall execution time of the program (both total CPU and CUDA only), the total floating point arithmetic intensity and the average program performance (calculated as the total floating point operations over the total CUDA time).
+
+To calculate the total floating point operations and the associated transfers to and from global memory (to then calculate the arithmetic intensity), we manually calculated the floating point operation and associated global memory transfers for each kernel we wrote. The program registers each kernel call and add its flops and transfers to their respective counter.
+
+To calculate the effective compute time we use CUDA events to register the start and end of the program (getting the total CUDA time with respect to the default stream).
+Then, still with CUDA events, we track each cudaMemcpy time (getting the total RAM-GPU transfer time), and we subtract it from the total CUDA time (because )
+
+That said, we hereby present our considerations on the obtained results.
