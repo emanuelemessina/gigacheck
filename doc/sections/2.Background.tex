@@ -16,25 +16,25 @@ Before performing the matrix multiplication,
 we calculate the column checksum of \( A \) and the row checksum of \( B \):
 
 \[
-  \textnormal{Column checksum of } A: \quad
-  \mathbf{c}_A =
-  \left[
-    \sum_{i=1}^{n} a_{i1},
-    \sum_{i=1}^{n} a_{i2},
-    \ldots, \sum_{i=1}^{n} a_{in}
-  \right]
+	\textnormal{Column checksum of } A: \quad
+	\mathbf{c}_A =
+	\left[
+		\sum_{i=1}^{n} a_{i1},
+		\sum_{i=1}^{n} a_{i2},
+		\ldots, \sum_{i=1}^{n} a_{in}
+		\right]
 \]
 
 \[
-  \textnormal{Row checksum of } B: \quad
-  \mathbf{r}_B = \left[ \sum_{j=1}^{n} b_{1j}, \sum_{j=1}^{n} b_{2j}, \ldots, \sum_{j=1}^{n} b_{nj} \right]^T
+	\textnormal{Row checksum of } B: \quad
+	\mathbf{r}_B = \left[ \sum_{j=1}^{n} b_{1j}, \sum_{j=1}^{n} b_{2j}, \ldots, \sum_{j=1}^{n} b_{nj} \right]^T
 \]
 
 \textit{
-  The row checksum of a matrix is a column vector where each element
-  is the sum of the elements in the corresponding row of the matrix.
-  Similarly, the column checksum is a row vector where
-each element is the sum of the elements in the corresponding column of the matrix.}
+	The row checksum of a matrix is a column vector where each element
+	is the sum of the elements in the corresponding row of the matrix.
+	Similarly, the column checksum is a row vector where
+	each element is the sum of the elements in the corresponding column of the matrix.}
 
 \subsubsection{Augmented Matrices}
 
@@ -42,34 +42,34 @@ We then create augmented matrices $A_{c}$ (\( m+1 \times n \)) and $B_{r}$ (\( n
 by appending the column and row checksum vectors, respectively, to the original matrices:
 Thus we get:
 \[
-  A_{c} =
-  \left[
-    \begin{array}{c}
-      A \\
-      \midrule
-      \mathbf{c}_A
-    \end{array}
-  \right]
-  \quad
-  ,
-  \quad
-  B_{r} = \left[
-    \begin{array}{c|c}
-      B &
-      \mathbf{r}_B
-    \end{array}
-  \right]
+	A_{c} =
+	\left[
+		\begin{array}{c}
+			A \\
+			\midrule
+			\mathbf{c}_A
+		\end{array}
+		\right]
+	\quad
+	,
+	\quad
+	B_{r} = \left[
+		\begin{array}{c|c}
+			B &
+			\mathbf{r}_B
+		\end{array}
+		\right]
 \]
 \subsubsection{Multiplication}
 We multiply $ A_{c} $ and $ B_{r} $ together, yielding
 \[
-  C_{cr} = A_{c} B_{r} = \left[
-    \begin{array}{c|c}
-      A B & A \, \mathbf{r}_B \\
-      \hline
-      \mathbf{c}_A \, B & \mathbf{c}_A \, \mathbf{r}_B
-    \end{array}
-  \right]
+	C_{cr} = A_{c} B_{r} = \left[
+		\begin{array}{c|c}
+			A B               & A \, \mathbf{r}_B            \\
+			\hline
+			\mathbf{c}_A \, B & \mathbf{c}_A \, \mathbf{r}_B
+		\end{array}
+		\right]
 \]
 We see that the original product is preserved
 in the upper left block,
@@ -80,11 +80,11 @@ Considering the column and row checksums of the upper left block of
 the resulting matrix \( C_{cr} \), the following properties hold:
 
 \[
-  \mathbf{c}_{AB} = \left[\mathbf{c}_A \, B \right]
-  \quad
-  ,
-  \quad
-  \mathbf{r}_{AB} = \left[A \, \mathbf{r}_B \right]
+	\mathbf{c}_{AB} = \left[\mathbf{c}_A \, B \right]
+	\quad
+	,
+	\quad
+	\mathbf{r}_{AB} = \left[A \, \mathbf{r}_B \right]
 \]
 
 The proof is trivial.
@@ -99,33 +99,33 @@ is equal to the last row of the augmented result, and the row cheksum of the lef
 is equal to the last column the augmented result. In formulas:
 
 \[
-  \mathbf{c}_{\text{control}} = \mathbf{c}_{
-    \begin{array}{c|c}
-      A B & A \, \mathbf{r}_B
-    \end{array}
-  } =
-  \left[
-    \begin{array}{c|c}
-      \mathbf{c}_A \, B &
-      \mathbf{c}_A \, \mathbf{r}_B
-    \end{array}
-  \right]
+	\mathbf{c}_{\text{control}} = \mathbf{c}_{
+		\begin{array}{c|c}
+			A B & A \, \mathbf{r}_B
+		\end{array}
+	} =
+	\left[
+		\begin{array}{c|c}
+			\mathbf{c}_A \, B &
+			\mathbf{c}_A \, \mathbf{r}_B
+		\end{array}
+		\right]
 \]
 
 \[
-  \mathbf{r}_{\text{control}} = \mathbf{r}_{
-    \begin{array}{c}
-      AB \\
-      \midrule
-      \mathbf{c}_A \, B
-  \end{array}} =
-  \left[
-    \begin{array}{c}
-      A \, \mathbf{r}_B \\
-      \hline
-      \mathbf{c}_A \, \mathbf{r}_B
-    \end{array}
-  \right]
+	\mathbf{r}_{\text{control}} = \mathbf{r}_{
+		\begin{array}{c}
+			AB \\
+			\midrule
+			\mathbf{c}_A \, B
+		\end{array}} =
+	\left[
+		\begin{array}{c}
+			A \, \mathbf{r}_B \\
+			\hline
+			\mathbf{c}_A \, \mathbf{r}_B
+		\end{array}
+		\right]
 \]
 
 As we can see, the last element of each control checksum, is the same,
@@ -176,20 +176,26 @@ when using buffering strategies as discussed in \hyperref[sec:strategies]{Sectio
 
 For column-collinear errors, the correction formula is:
 \[
-  C_{i,j} = C^*_{i,q+1} - \mathbf{r}_{\text{control}_{i}} + C_e
+	C_{i,j} = C^*_{i,q+1} - \mathbf{r}_{\text{control}_{i}} + C_e
 \]
 For row collinear errors, the correction formula is:
 \[
-  C_{i,j} = C^*_{m+1,j} - \mathbf{c}_{\text{control}_{j}} + C_e
+	C_{i,j} = C^*_{m+1,j} - \mathbf{c}_{\text{control}_{j}} + C_e
 \]
 
 These formulas are quite easy to derive by solving a system of two equations:
 the equality between a control checksum and the associated checksum block in $C^*$ when no error is present,
 and the actual control checksum computation equation where the error $C_e$ shows up.
 
-\subsection{Strassen}
+\subsection{Strassen algorithm}
 
-TODO spiegare Strassen
+Strassen algorithm is an alternative to the traditional algorithm for matrix multiplications.
+It leverages some mathematical properties, to reduce the number of products required to compute a given matrix product.
+
+Although it is usually not described like this, the traditional algorithm can be seen as a series of products of submatrices.
+Figure~\ref{img:matmul-2x2-normal} shows that, when splitting the operands into 4 blocks, 8 multiplications are required.
+Instead, Strassen algorithm is able to reduce this number to 7 (as visible in figure~\ref{img:matmul-2x2-strassen}), switching the removed one with a series of less computational intensive sums.
+
+\img{matmul-2x2-normal}{.5\linewidth}{a product of 2x2 matrices with the traditional algorithm}
 \img{matmul-2x2-strassen}{.6\linewidth}{A product of 2x2 matrices with the Strassen algorithm}
-
 \subsection{CUDA queues}
