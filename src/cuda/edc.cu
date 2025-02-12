@@ -9,15 +9,18 @@
 
 namespace cuda
 {
-    EDCResult errors_detect_correct(const float* d_ec_matrix, int rows, int cols, float* d_cc_control, float* d_rc_control, cudaStream_t mainStream, cudaStream_t secondaryStream, bool* recompute_vertical_checksums, bool* recompute_horizontal_checksums)
-    {
-        EDCResult edc_res;
 
+#define MISMATCH_COUNT_X 0
+#define ERROR_X 1
+#define MISMATCH_COUNT_Y 2
+#define ERROR_Y 3
+
+    void compare_checksums(const float* d_ec_matrix, int rows, int cols, float* d_cc_control, float* d_rc_control, cudaStream_t mainStream, cudaStream_t secondaryStream, int** mismatch_info_out, int** d_error_xs_out, int** d_error_ys_out)
+    {
         globals::profiling::memcpyTimer.start();
 
         // allocate mismatches index buffers
 
-        int error_xs[EDC_MAX_ERRORS], error_ys[EDC_MAX_ERRORS];
         int *d_error_xs, *d_error_ys;
         cudaMalloc(&d_error_xs, EDC_MAX_ERRORS * sizeof(int));
         cudaMalloc(&d_error_ys, EDC_MAX_ERRORS * sizeof(int));
@@ -34,11 +37,6 @@ namespace cuda
         CUDA_CHECK
 
         globals::profiling::memcpyTimer.stop();
-
-#define MISMATCH_COUNT_X 0
-#define ERROR_X 1
-#define MISMATCH_COUNT_Y 2
-#define ERROR_Y 3
 
         // depth-first issuing to avoid consecutive kernel scheduling blocking kernel0 signal to copy queue
 
@@ -77,6 +75,19 @@ namespace cuda
         cudaMemcpyAsync(mismatch_info + 2, d_mismatch_info + 2, 2 * sizeof(float), cudaMemcpyDeviceToHost, secondaryStream);
 
         globals::profiling::memcpyTimer.stop();
+
+        cudaFree(d_mismatch_info);
+
+        *mismatch_info_out = mismatch_info;
+        *d_error_xs_out = d_error_xs;
+        *d_error_ys_out = d_error_ys;
+    }
+
+    EDCResult errors_localize_correct(const float* d_ec_matrix, int rows, int cols, int* mismatch_info, int* d_error_xs, int* d_error_ys, float* d_cc_control, float* d_rc_control, cudaStream_t mainStream, cudaStream_t secondaryStream, bool* recompute_vertical_checksums, bool* recompute_horizontal_checksums)
+    {
+        int error_xs[EDC_MAX_ERRORS], error_ys[EDC_MAX_ERRORS];
+
+        EDCResult edc_res;
 
         cudaStreamSynchronize(mainStream);
         cudaStreamSynchronize(secondaryStream);
@@ -224,7 +235,6 @@ namespace cuda
     cleanup:
 
         cudaFreeHost(mismatch_info);
-        cudaFree(d_mismatch_info);
         cudaFree(d_error_xs);
         cudaFree(d_error_ys);
 
