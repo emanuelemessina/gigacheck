@@ -37,7 +37,7 @@ A timing diagram of this strategy can be seen in figure~\ref{img:strategies-timi
 
 When using strategy 1, the multiplication requires A and B to be loaded: this means that while A and B are being transfered to GPU, no computation is being done (except for the checksums, that are however very fast).
 Similarly, loading the next A and B requires the product to be completed, thus having no memory transfer while computing the product.
-Effectively, this means that the 3 CUDA queues are mostly disjoint: the only overlaps are H2D and D2H when copying C (not at every iteration), and H2D and compute while calculating the checksums (for a very short time).
+Effectively, this means that the three CUDA queues are mostly disjoint: the only overlaps are H2D and D2H when copying C (not at every iteration), and H2D and compute while calculating the checksums (for a very short time).
 
 Strategy 2 aims to improve this situation, by dividing the GPU memory in two extra blocks (5 in total, called A, A', B, B' and C).
 Initially, A and B are pre-loaded.
