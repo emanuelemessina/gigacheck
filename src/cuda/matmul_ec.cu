@@ -220,55 +220,31 @@ void compute_control_checksums(float* C, ReductionDirection direction, int max_b
 
 namespace cuda
 {
-    /**
-     * @brief Executes multiplication, error injection, error detection and error correction
-     *
-     * @param[in]   A                     The first matrix to multiply
-     * @param[in]   B                     The second matrix to multiply
-     * @param[out]  C                     The result matrix
-     * @param[in]   rows_A                Total number of rows in A
-     * @param[in]   cols_B                Total number of cols in B
-     * @param[in]   num_split_common_dim  The number of blocks the matrix was split into (in the direction where blocks of A and B must have the same size)
-     * @param[in]   num_split_other_dim   The number of blocks the matrix was split into (in the other direction)
-     * @param[in]   max_block_rows_A      The max amount of rows in any block of A
-     * @param[in]   max_block_cols_A      The max amount of cols in any block of A
-     * @param[in]   max_block_cols_B      The max amount of cols in any block of B
-     * @param[in]   C_block_idy                 The coordinates (row) of the block of C that is being calculated
-     * @param[in]   C_block_idx                 The coordinates (col) of the block of C that is being calculated
-     * @param[out]  block_rows_C_cur      The number of meaningful rows in the current block of C
-     * @param[out]  block_cols_C_cur      The number of meaningful cols in the current block of C
-     * @param[in]   stream                Which stream to use as main stream
-     * @param[in]   streamBis             Which stream to use for operations concurrent to the main stream
-     * @param[in]   errors_count          The number of errors to be introduced
-     * @param[in]   error_xs              The coordinates (x) of the errors to be introduced
-     * @param[in]   error_ys              The coordinates (y) of the errors to be introduced
-     * @param[in]   error_values          The values of the errors
-     * @param[out]  result_correct        Whether the final value of C left in output is correct
-     * @param[out]  result_corrected      Whether the matrix had errors, but all errors were corrected
-     *
-     */
-    void mul_inject_edc(float* A,
-                        float* B,
-                        float* C,
-                        int rows_A,
-                        int cols_B,
-                        int num_split_common_dim,
-                        int num_split_other_dim,
-                        int max_block_rows_A,
-                        int max_block_cols_A,
-                        int max_block_cols_B,
-                        int C_block_idy,
-                        int C_block_idx,
-                        int* block_rows_C_cur,
-                        int* block_cols_C_cur,
-                        cudaStream_t stream,
-                        cudaStream_t streamBis,
-                        int errors_count,
-                        int* error_xs,
-                        int* error_ys,
-                        float* error_values,
-                        bool* result_correct,
-                        bool* result_corrected)
+    void mul_inject_compare(float* A,
+                            float* B,
+                            float* C,
+                            int rows_A,
+                            int cols_B,
+                            int num_split_common_dim,
+                            int num_split_other_dim,
+                            int max_block_rows_A,
+                            int max_block_cols_A,
+                            int max_block_cols_B,
+                            int C_block_idy,
+                            int C_block_idx,
+                            int* block_rows_C_cur,
+                            int* block_cols_C_cur,
+                            cudaStream_t stream,
+                            cudaStream_t streamBis,
+                            int errors_count,
+                            int* error_xs,
+                            int* error_ys,
+                            float* error_values,
+                            int** mismatch_info_out,
+                            int** d_error_xs_out,
+                            int** d_error_ys_out,
+                            float** d_cc_control_out,
+                            float** d_rc_control_out)
     {
         if (globals::debugPrint)
         {
@@ -374,6 +350,8 @@ namespace cuda
             CUDA_CHECK
         }
 
+        cudaEventDestroy(C_err_added);
+
         // print control checksums
         if (globals::debugPrint)
         {
@@ -384,13 +362,37 @@ namespace cuda
             matrix::print(d_cc_control, 1, MAX_BLOCK_COLS_C + 1, "C control column checksum", HIGHLIGHT_LAST_ROW | IS_DEVICE_MAT, error_xs, zeros.data(), errors_count);
         }
 
+        // compare checksums
+
+        {
+            compare_checksums(C, MAX_BLOCK_ROWS_C, MAX_BLOCK_COLS_C, d_cc_control, d_rc_control, stream, streamBis, mismatch_info_out, d_error_xs_out, d_error_ys_out);
+        }
+
+        *d_cc_control_out = d_cc_control;
+        *d_rc_control_out = d_rc_control;
+    }
+
+    void elc(float* C,
+             int max_block_rows_A,
+             int max_block_cols_A,
+             int max_block_cols_B,
+             cudaStream_t stream,
+             cudaStream_t streamBis,
+             int* mismatch_info,
+             int* d_error_xs,
+             int* d_error_ys,
+             float* d_cc_control,
+             float* d_rc_control,
+             bool* result_correct,
+             bool* result_corrected)
+    {
         // edc
 
         {
             bool recompute_vertical_checksums = false;
             bool recompute_horizontal_checksums = false;
 
-            EDCResult edc_res = errors_detect_correct(C, MAX_BLOCK_ROWS_C, MAX_BLOCK_COLS_C, d_cc_control, d_rc_control, stream, streamBis, &recompute_vertical_checksums, &recompute_horizontal_checksums);
+            EDCResult edc_res = errors_localize_correct(C, MAX_BLOCK_ROWS_C, MAX_BLOCK_COLS_C, mismatch_info, d_error_xs, d_error_ys, d_cc_control, d_rc_control, stream, streamBis, &recompute_vertical_checksums, &recompute_horizontal_checksums);
 
             // choice: don't send back the result if it's wrong
             // NOTE: now the result may be partial, since an error will stop the rest
@@ -417,7 +419,6 @@ namespace cuda
 
         cudaFree(d_cc_control);
         cudaFree(d_rc_control);
-        cudaEventDestroy(C_err_added);
     }
 
     EDCResult matmul_ec(float* A, float* B, float* C, int rows_A, int cols_A, int cols_B, int errors_count, int** per_block_error_xs, int** per_block_error_ys, float** error_values, MulStrategy strategy)
@@ -636,12 +637,19 @@ namespace cuda
                     CUDA_WAIT_EVENT_DESTROY(B_copied, stream_C)
 
                     // Compute product
-                    mul_inject_edc(dA, dB, dC, rows_A, cols_B, num_split_common_dim, num_split_other_dim, max_block_rows_A, max_block_cols_A, max_block_cols_B, C_block_idy, C_block_idx, &block_rows_C_cur, &block_cols_C_cur, stream_C, stream_Cbis, errors_count, per_block_error_xs[block_id], per_block_error_ys[block_id], error_values[block_id], &result_correct, &result_corrected);
+                    int* mismatch_info;
+                    int *d_error_xs, *d_error_ys;
+                    float *d_cc_control, *d_rc_control;
+                    mul_inject_compare(dA, dB, dC, rows_A, cols_B, num_split_common_dim, num_split_other_dim, max_block_rows_A, max_block_cols_A, max_block_cols_B, C_block_idy, C_block_idx, &block_rows_C_cur, &block_cols_C_cur, stream_C, stream_Cbis, errors_count, per_block_error_xs[block_id], per_block_error_ys[block_id], error_values[block_id], &mismatch_info, &d_error_xs, &d_error_ys, &d_cc_control, &d_rc_control);
 
                     // Notify that A and B are no longer needed, and as such they can be overwritten
                     if (strategy != parallelMul || C_block_idx + 1 >= num_split_other_dim)
                         CUDA_CREATE_RECORD_EVENT(A_can_be_overwritten, stream_C);
                     CUDA_CREATE_RECORD_EVENT(B_can_be_overwritten, stream_C);
+
+                    int* mismatch_info_pmul;
+                    int *d_error_xs_pmul, *d_error_ys_pmul;
+                    float *d_cc_control_pmul, *d_rc_control_pmul;
 
                     // If parallel multiplication, and C' is meaningful, compute the other product
                     if (strategy == parallelMul && C_block_idx + 1 < num_split_other_dim)
@@ -650,10 +658,17 @@ namespace cuda
                         CUDA_WAIT_EVENT_DESTROY(B_alt_copied, stream_C_alt)
 
                         block_id = block_common_id + (C_block_idx + 1) * num_split_common_dim + C_block_idy * num_split_common_dim * num_split_other_dim;
-                        mul_inject_edc(dA, dB_alt, dC_alt, rows_A, cols_B, num_split_common_dim, num_split_other_dim, max_block_rows_A, max_block_cols_A, max_block_cols_B, C_block_idy, C_block_idx + 1, &block_rows_C_alt, &block_cols_C_alt, stream_C_alt, stream_Cbis_alt, errors_count, per_block_error_xs[block_id], per_block_error_ys[block_id], error_values[block_id], &result_correct_alt, &result_corrected_alt);
+                        mul_inject_compare(dA, dB_alt, dC_alt, rows_A, cols_B, num_split_common_dim, num_split_other_dim, max_block_rows_A, max_block_cols_A, max_block_cols_B, C_block_idy, C_block_idx + 1, &block_rows_C_alt, &block_cols_C_alt, stream_C_alt, stream_Cbis_alt, errors_count, per_block_error_xs[block_id], per_block_error_ys[block_id], error_values[block_id], &mismatch_info_pmul, &d_error_xs_pmul, &d_error_ys_pmul, &d_cc_control_pmul, &d_rc_control_pmul);
 
                         CUDA_CREATE_RECORD_EVENT(A_can_be_overwritten, stream_C);
                         CUDA_CREATE_RECORD_EVENT(B_alt_can_be_overwritten, stream_C_alt);
+                    }
+
+                    elc(dC, max_block_rows_A, max_block_cols_A, max_block_cols_B, stream_C, stream_Cbis, mismatch_info, d_error_xs, d_error_ys, d_cc_control, d_rc_control, &result_correct, &result_corrected);
+
+                    if (strategy == parallelMul && C_block_idx + 1 < num_split_other_dim)
+                    {
+                        elc(dC_alt, max_block_rows_A, max_block_cols_A, max_block_cols_B, stream_C_alt, stream_Cbis_alt, mismatch_info_pmul, d_error_xs_pmul, d_error_ys_pmul, d_cc_control_pmul, d_rc_control_pmul, &result_correct_alt, &result_corrected_alt);
                     }
 
                     // Switch A and B buffers if required
