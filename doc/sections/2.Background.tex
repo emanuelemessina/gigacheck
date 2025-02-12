@@ -28,7 +28,7 @@ These are the steps we perform:
 
     \[
       \textnormal{Row checksum of } B: \quad
-      \mathbf{r}_B = \left[ \sum_{j=1}^{n} b_{1j}, \sum_{j=1}^{n} b_{2j}, \ldots, \sum_{j=1}^{n} b_{nj} \right]
+      \mathbf{r}_B = \left[ \sum_{j=1}^{n} b_{1j}, \sum_{j=1}^{n} b_{2j}, \ldots, \sum_{j=1}^{n} b_{nj} \right]^T
     \]
 
     \textit{
@@ -94,7 +94,7 @@ These are the steps we perform:
     and compare them against the peripheral blocks to at least detect the corruption of the result.
 
     In general, the column checksum of the upper blocks of the augmented result
-    is equal to the last row of the aumented result, and the row cheksum of the left blocks of the augmented result
+    is equal to the last row of the augmented result, and the row cheksum of the left blocks of the augmented result
     is equal to the last column the augmented result. In formulas:
 
     \[
@@ -160,7 +160,26 @@ These are the steps we perform:
 
   \item \textbf{Error Correction}:
 
-    TODO SPIEGAZIONE + FORMULA ERROR CORRECTION
+    We can only correct detectable errors, i.e. the ones we can isolate from the coordinates obtained by the checksum mismatches.
+
+    For a given error $C_e$ of coordinates $(i,j)$ in $C^* := C_{cr}$, we must choose one of the two control checksums and the associated checksum block in $C_{cr}$ to recover the original result value.
+    To do this, we simply enstablish along which axis the errors are collinear, and use the checksum of the opposite axis (the one which contains more than one mismatch) to compute the correction values.
+    For example, if the errors are arranged on a column, the column control checksum will contain a single mismatch while the row control checksum will contain as many mismatches as the error count, thus we have to use the row checksum because it contains distinct correction values for each error.
+    Of course, if there is only a single error present, one control checksum is as good as the other.
+    We can discard errors in the checksum blocks as they don't corrupt the original multiplication result.
+
+    For column-collinear errors, the correction formula is:
+    \[
+      C_{i,j} = C^*_{i,q+1} - \mathbf{r}_{\text{control}_{i}} + C_e
+    \]
+    For row collinear errors, the correction formula is:
+    \[
+      C_{i,j} = C^*_{m+1,j} - \mathbf{c}_{\text{control}_{j}} + C_e
+    \]
+
+    These formulas are quite easy to derive by solving a system of two equations:
+    the equality between a control checksum and the associated checksum block in $C^*$ when no error is present,
+    and the actual control checksum computation equation where the error $C_e$ shows up.
 
 \end{enumerate}
 
