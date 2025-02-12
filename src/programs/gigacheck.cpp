@@ -168,10 +168,10 @@ namespace programs
 
         {
             float seconds = totalCudaTime / (double)1000;
-            COUT << BOLD << "Kernels effective time: " << RESET << seconds << " s" << ENDL;
+            COUT << BOLD << "Total CUDA time: " << RESET << seconds << " s" << ENDL;
             float gigaflops = globals::profiling::flop_counter / (double)pow(1000, 3);
             float performance = gigaflops / seconds;
-            COUT << BOLD << "Total program performance: " << RESET << performance << " GFLOPs/s" << ENDL;
+            COUT << BOLD << "Average program performance: " << RESET << performance << " GFLOPs/s" << ENDL;
             uint64_t bytes = globals::profiling::transfer_counter * (uint64_t)sizeof(float);
             float intensity = globals::profiling::flop_counter / (double)bytes;
             COUT << BOLD << "Total program intensity: " << RESET << intensity << " FLOPs/B" << ENDL;
