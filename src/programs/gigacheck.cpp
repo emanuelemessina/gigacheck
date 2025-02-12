@@ -174,7 +174,7 @@ namespace programs
             COUT << BOLD << "Average program performance: " << RESET << performance << " GFLOPs/s" << ENDL;
             uint64_t bytes = globals::profiling::transfer_counter * (uint64_t)sizeof(float);
             float intensity = globals::profiling::flop_counter / (double)bytes;
-            COUT << BOLD << "Total program intensity: " << RESET << intensity << " FLOPs/B" << ENDL;
+            COUT << BOLD << "Total kernel intensity: " << RESET << intensity << " FLOPs/B" << ENDL;
         }
 
         int result = 0;
