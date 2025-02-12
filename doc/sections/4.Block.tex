@@ -24,4 +24,21 @@ For this reason, we decided to drop Strassen algorithm at this smaller size leve
 
 \img{tiled-matmul-pseudocode}{0.7\linewidth}{the pseudocode of the kernel that computes the matrix multiplication using the tiled approach}
 
+\subsection{Error addition}
+
+In order to demonstrate the error correction capability, some errors can be added after the computation of the product.
+The number of errors per product can be set by the user, as well as if they must be collinear or not.
+
+The program randomly chooses a set of distinct elements where to add errors, and adds a random delta to the chosen element.
+
 \subsection{Error correction}
+
+After computing the product and adding the errors, checksums are computed again on the result, both on the rows and the columns.
+A kernel is then run to find mismatches between the control checksums (the ones obtained as the sum of rows or columns of C) and the ones in C (obtained from the multiplication).
+
+The mismatches are then compared to check if errors are present, and if they are collinear (otherwhise, they are not correctable).
+If the errors are correctable, they are corrected by using the control checksums.
+If they are not correctable, or there are errors on the checksums, then the callee is notified.
+Errors on checksums are not corrected, since it did not cost much computation to just re-compute the checksums in the wrong direction from scratch. 
+
+\img{edc-pseudocode}{0.7\linewidth}{the pseudocode of function that detects and corrects the errors (find\_mismatches is a GPU kernel, while the rest is executed on CPU)}
