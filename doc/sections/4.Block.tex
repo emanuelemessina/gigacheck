@@ -2,6 +2,42 @@
 \label{sec:block}
 
 \subsection{Computing checksums}
+
+The checksums are computed by a single kernel, that based on a parameter computes row or column checksums.
+
+For row checksums, a thread block is generated for each row, with a set of threads that initially sum a portion of the row, in a linear way.
+After that, the different threads of the block organize themselves to sum all the partial sums in a dichotomous way.
+
+Similarly, column checksums generate a thread block for each column, performing the same operations in the orthogonal direction.
+
+After the computation, the kernel is able to store the checksum either in the last row or column of the matrix, or into a separate vector, in order to avoid overriding the previous checksums (the control checksums of C).
+
+\img{checksums-pseudocode}{0.7\linewidth}{the pseudocode of the kernel that computes the checksums}
+
 \subsection{Computing the product}
-Strassen no perchè errore si ripete
+
+When the matrices are small enough to fit on GPU (or we are working on blocks), the multiplication is realized by means of the standard tiled algorithm for GPU.
+
+Initially, we believed that we could apply one or two recursions of Strassen algorithm to reduce the number of products.
+Then, we realized that this would make the same error appear in different submatrices: this would make it much harder to correct it, since non-collinear errors are not correctable.
+For this reason, we decided to drop Strassen algorithm at this smaller size level.
+
+\img{tiled-matmul-pseudocode}{0.7\linewidth}{the pseudocode of the kernel that computes the matrix multiplication using the tiled approach}
+
+\subsection{Error addition}
+
+In order to demonstrate the error correction capability, some errors can be added after the computation of the product.
+The number of errors per product can be set by the user, as well as if they must be collinear or not.
+
+The program randomly chooses a set of distinct elements where to add errors, and adds a random delta to the chosen element.
+
 \subsection{Error correction}
+
+After computing the product and adding the errors, checksums are computed again on the result, both on the rows and the columns.
+A kernel is then run to find mismatches between the control checksums (the ones obtained as the sum of rows or columns of C) and the ones in C (obtained from the multiplication).
+
+The mismatches are then compared to check if errors are present, and if they are collinear (otherwhise, they are not correctable).
+If the errors are correctable, they are corrected by using the control checksums.
+If they are not correctable, or there are errors on the checksums, then the caller is notified.
+
+\img{edc-pseudocode}{0.7\linewidth}{the pseudocode of function that detects and corrects the errors (find\_mismatches is a GPU kernel, while the rest is executed on CPU)}

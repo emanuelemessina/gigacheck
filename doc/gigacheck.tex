@@ -7,7 +7,6 @@
 \usepackage{hyperref}
 \usepackage{amsmath}
 \usepackage{booktabs}
-\usepackage[justification=centering]{caption}
 \usepackage{enumitem}
 
 \definecolor{light-gray}{gray}{0.9}
@@ -30,18 +29,18 @@
 \maketitle
 
 \begin{abstract}
-  In this project, we developed and implemented
-  a fault-tolerant matrix multiplication algorithm
-  capable of handling matrices of arbitrary sizes on a GPU.
-  The algorithm incorporates an error detection and correction technique
-  to ensure computational accuracy in the presence of errors, and
-  different buffering strategies were designed
-  to manage memory constraints
-  by splitting large matrices into manageable chunks
-  that fit within GPU memory.
-  We wrote a self-contained benchmark program
-  to evaluate the algorithm performance
-  when varying settings such as input size, available memory and buffering strategies.
+	In this project, we developed and implemented
+	a fault-tolerant matrix multiplication algorithm
+	capable of handling matrices of arbitrary sizes on a GPU.
+	The algorithm incorporates an error detection and correction technique
+	to ensure computational accuracy in the presence of errors, and
+	different buffering strategies were designed
+	to manage memory constraints
+	by splitting large matrices into manageable chunks
+	that fit within GPU memory.
+	We wrote a self-contained benchmark program
+	to evaluate the algorithm performance
+	when varying settings such as input size, available memory and buffering strategies.
 \end{abstract}
 
 \input{sections/1.Introduction}
