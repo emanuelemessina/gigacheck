@@ -40,4 +40,4 @@ The mismatches are then compared to check if errors are present, and if they are
 If the errors are correctable, they are corrected by using the control checksums.
 If they are not correctable, or there are errors on the checksums, then the caller is notified.
 
-\img{edc-pseudocode}{0.7\linewidth}{the pseudocode of function that detects and corrects the errors (find\_mismatches is a GPU kernel, while the rest is executed on CPU)}
+\img{edc-pseudocode}{0.7\linewidth}{the pseudocode of the function that detects and corrects the errors (\texttt{find\_mismatches} is a GPU kernel, while the rest is executed on CPU)}

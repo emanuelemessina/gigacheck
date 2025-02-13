@@ -21,6 +21,8 @@ If the available memory is smaller by a factor $k$, then:
 	\item\code{num\_split\_other\_dim} is assigned the value $\lceil \frac{k}{num\_split\_other\_dim} \rceil$.
 \end{itemize}
 
+\img{strategies-timing-diagram}{.8\linewidth}{the timing diagram for our strategies, including the best (S4b) and worst (S4w) cases for strategy 4. Timings are scaled based on the block size reduction. The different number of blocks computed represents a computation of a similar number of elements, with S2 and S4 computing about $1.2$ times what is computed by S1 and S3}
+
 \subsection{Strategy 1: no buffering}
 
 This is the naive approach: the GPU memory is divided into 3 blocks: A, B and C.
@@ -30,8 +32,6 @@ Whenever all the multiplications for a block of C are done, the block itself is 
 A timing diagram of this strategy can be seen in figure~\ref{img:strategies-timing-diagram} (diagram S1).
 
 \img{strategy-1}{.5\linewidth}{pseudocode of the algorithm for strategy 1}
-
-\img{strategies-timing-diagram}{.8\linewidth}{the timing diagram for our strategies, including the best (S4b) and worst (S4w) cases for strategy 4. Timings are scaled based on the block size reduction. The different number of blocks computed represents a computation of a similar number of elements, with S2 and S4 computing about $1.2$ times what is computed by S1 and S3}
 
 \subsection{Strategy 2: double buffer for A and B}
 
@@ -89,15 +89,19 @@ In order to compare the two options among them and with the traditional algorith
 
 When using Strassen algorithm, the product would be as described in figure~\ref{img:matmul-2x2-strassen}.
 
+\img{matmul-flow-normal}{\linewidth}{the series of load/calc/unload operations for a 2x2 product with the traditional algorithm. The colors indicate what has been loaded (red), computed (blue), offloaded (green) or left unchanged (black) from the previous step. An apex indicates that the result is partial.}
+
 As visible in figure~\ref{img:matmul-flow-normal}, the traditional algorithm requires 20 memory transfers, to load the blocks of A and B, and to offload C when computed.
 This example assumes that the GPU is divided into 3 blocks of equal size (the 3 squares on top of each other, in the image)
-\img{matmul-flow-normal}{\linewidth}{the series of load/calc/unload operations for a 2x2 product with the traditional algorithm. The colors indicate what has been loaded (red), computed (blue), offloaded (green) or left unchanged (black) from the previous step. An apex indicates that the result is partial.}
 If we want to use Strassen algorithm with blocks of the same size, figure~\ref{img:matmul-flow-strassen-more-transfers} reveals that 45 memory transfers are required, because the program needs to offload temporary sums and matrices to make space for the other values.
-\img{matmul-flow-strassen-more-transfers}{\linewidth}{the series of load/calc/unload operations for a 2x2 product with Strassen algorithm, if we want to have the GPU memory divided in just 3 blocks}
 If instead we decide to have more blocks for the Strassen algorithm, in order to avoid offloading temporary results, we would need 21 memory transfers, as shown in figure~\ref{img:matmul-flow-strassen-more-memory}.
 This removes one multiplication with respect to the traditional algorithm, at the cost of adding just an extra memory transfer.
 In principle it would be good, if not for the fact that this approach requires the blocks to have half the size, thus having on average $\sqrt{2}$ more blocks.
 That would then require more multiplications than what the Strassen algorithm saves, thus making its application not beneficial.
-\img{matmul-flow-strassen-more-memory}{\linewidth}{the series of load/calc/unload operations for a 2x2 product with Strassen algorithm, if we want to avoid offloading temporary results}
+
+\img{matmul-flow-strassen-more-transfers}{\linewidth}{the series of load/calc/unload operations for a 2x2 product with Strassen algorithm, if we want to have the GPU memory divided in just 3 blocks}
 
 As a conclusion, we realized that Strassen algorithm was an efficient way to save computation time, but only if the full matrices were fully available on GPU, thus making memory transfers not needed.
+
+\newpage
+\img{matmul-flow-strassen-more-memory}{\linewidth}{the series of load/calc/unload operations for a 2x2 product with Strassen algorithm, if we want to avoid offloading temporary results}
