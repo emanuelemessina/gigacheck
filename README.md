@@ -1,6 +1,6 @@
 # gigacheck
 
-ABFT Matrix Multiplication in CUDA
+ABFT Matrix Multiplication of any size in CUDA
 
 ## Paper
 
