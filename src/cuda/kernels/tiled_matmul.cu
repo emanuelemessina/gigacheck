@@ -114,7 +114,7 @@ __global__ void kernels::tiled_matmul(float* A, float* B, float* C, int rows_A, 
 
     // load tiles into shared memory
 
-    for (int tile_idx = 0; tile_idx < NUM_TILES_X; tile_idx++) // this thread looks through the tiles on his same row horizontally  // N/blockdim iterations
+    for (int tile_idx = 0; tile_idx < NUM_TILES_X; tile_idx++) // this thread looks through the tiles on his same row horizontally  // colsA/blockdim iterations
     {
         // load matrices elements into the shared tiles memory:
         //     - element (TH_ROW, TH_COL) of tile (TILE_IDY, tile_idx) of matrix A (one of A's tiles on the same grid row as this thread)
@@ -148,5 +148,5 @@ __global__ void kernels::tiled_matmul(float* A, float* B, float* C, int rows_A, 
     sumMatrixElement(C, ROWS_C, COLS_C, TILESIDE, TILE_IDY, TILE_IDX, TH_ROW, TH_COL, res); // 1 transf, 1 op
 }
 
-// transfers = N*(N/blockdim)*2 + N*1
-// ops = N*(N/blockdim)*(blockdim*2) + N*1
+// transfers = N*(colsA/blockdim)*2 + N*1
+// ops = N*(colsA/blockdim)*(blockdim*2) + N*1 = N*(colsA*2 +1)

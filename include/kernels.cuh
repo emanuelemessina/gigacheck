@@ -97,10 +97,10 @@ namespace kernels
      */
     namespace metrics
     {
-        inline std::pair<uint64_t, uint64_t> compute_checksums(uint64_t N, uint64_t blockdim)
+        inline std::pair<uint64_t, uint64_t> compute_checksums(uint64_t N, uint64_t blockdim, int rows, int cols, ReductionDirection dir)
         {
-            uint64_t flops = N * (N / blockdim) * 1 + N * (uint64_t)log2(blockdim) * 1;
-            uint64_t transfers = N * (N / blockdim) * 1 + 1;
+            uint64_t flops = N + (dir == ReductionDirection::ALONG_COL ? cols : rows) * (blockdim - 1);
+            uint64_t transfers = N + (dir == ReductionDirection::ALONG_COL ? cols : rows) * 1;
             return std::make_pair(flops, transfers);
         }
 
@@ -111,10 +111,10 @@ namespace kernels
             return std::make_pair(flops, transfers);
         }
 
-        inline std::pair<uint64_t, uint64_t> tiled_matmul(uint64_t N, uint64_t blockdim)
+        inline std::pair<uint64_t, uint64_t> tiled_matmul(uint64_t N, uint64_t blockdim, int cols_A)
         {
-            uint64_t flops = N * (N / blockdim) * (blockdim * 2) + N * 1;
-            uint64_t transfers = N * (N / blockdim) * 2 + N * 1;
+            uint64_t flops = N * (cols_A * 2 + 1);
+            uint64_t transfers = N * (cols_A / blockdim) * 2 + N * 1;
             return std::make_pair(flops, transfers);
         }
     }

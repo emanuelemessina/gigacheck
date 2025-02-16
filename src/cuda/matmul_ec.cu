@@ -142,7 +142,7 @@ void loadcheck_input_block(OperandMatrix operand, float* h_mat, float* d_mat, in
         ReductionDirection direction = operand == OperandMatrix::A ? ReductionDirection::ALONG_COL : ReductionDirection::ALONG_ROW;
         kernels::compute_checksums<<<gridDim, blockDim, sharedMemSize, stream>>>(d_mat, max_block_rows, max_block_cols, direction);
 
-        std::pair<uint64_t, uint64_t> m = kernels::metrics::compute_checksums(dimsToN(gridDim, blockDim), max(blockDim.x, blockDim.y));
+        std::pair<uint64_t, uint64_t> m = kernels::metrics::compute_checksums(dimsToN(gridDim, blockDim), max(blockDim.x, blockDim.y), max_block_rows, max_block_cols, direction);
         globals::profiling::flop_counter += m.first;
         globals::profiling::transfer_counter += m.second;
 
@@ -197,7 +197,7 @@ void compute_control_checksums(float* C, ReductionDirection direction, int max_b
         int sharedMemSize = linearDimToBytes(tileDim.y);
         kernels::compute_checksums<<<gridDim, blockDim, sharedMemSize, stream>>>(C, MAX_BLOCK_ROWS_C, (MAX_BLOCK_COLS_C + 1), ReductionDirection::ALONG_COL, result_array);
 
-        std::pair<uint64_t, uint64_t> m = kernels::metrics::compute_checksums(dimsToN(gridDim, blockDim), max(blockDim.x, blockDim.y));
+        std::pair<uint64_t, uint64_t> m = kernels::metrics::compute_checksums(dimsToN(gridDim, blockDim), max(blockDim.x, blockDim.y), MAX_BLOCK_ROWS_C, (MAX_BLOCK_COLS_C + 1), ReductionDirection::ALONG_COL);
         globals::profiling::flop_counter += m.first;
         globals::profiling::transfer_counter += m.second;
     }
@@ -210,7 +210,7 @@ void compute_control_checksums(float* C, ReductionDirection direction, int max_b
         int sharedMemSize = linearDimToBytes(tileDim.x);
         kernels::compute_checksums<<<gridDim, blockDim, sharedMemSize, stream>>>(C, (MAX_BLOCK_ROWS_C + 1), MAX_BLOCK_COLS_C, ReductionDirection::ALONG_ROW, result_array);
 
-        std::pair<uint64_t, uint64_t> m = kernels::metrics::compute_checksums(dimsToN(gridDim, blockDim), max(blockDim.x, blockDim.y));
+        std::pair<uint64_t, uint64_t> m = kernels::metrics::compute_checksums(dimsToN(gridDim, blockDim), max(blockDim.x, blockDim.y), (MAX_BLOCK_ROWS_C + 1), MAX_BLOCK_COLS_C, ReductionDirection::ALONG_ROW);
         globals::profiling::flop_counter += m.first;
         globals::profiling::transfer_counter += m.second;
     }
@@ -275,7 +275,7 @@ namespace cuda
 
             CUDA_CHECK
 
-            std::pair<uint64_t, uint64_t> m = kernels::metrics::tiled_matmul(dimsToN(gridDim, tileDim), tileDim.x);
+            std::pair<uint64_t, uint64_t> m = kernels::metrics::tiled_matmul(dimsToN(gridDim, tileDim), tileDim.x, max_block_cols_A);
             globals::profiling::flop_counter += m.first;
             globals::profiling::transfer_counter += m.second;
         }

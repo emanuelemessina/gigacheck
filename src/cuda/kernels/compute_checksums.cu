@@ -14,7 +14,7 @@ __global__ void kernels::compute_checksums(float* matrix, int rows, int cols, Re
     int limit_reduction = reduction_direction == ReductionDirection::ALONG_COL ? rows : cols;
 
     // this thread accumulates values in blockdim offsets along the reduction direction
-    for (int i = index_reduction; i < limit_reduction; i += blockDim_reduction) // N/blockdim iterations
+    for (int i = index_reduction; i < limit_reduction; i += blockDim_reduction) // (rows : cols)/blockdim iterations
     {
         sum += reduction_direction == ReductionDirection::ALONG_COL ? matrix[i * cols + index_orthogonal] : matrix[index_orthogonal * (cols + 1) + i]; // 1 transf, 1 op
     }
@@ -53,5 +53,10 @@ __global__ void kernels::compute_checksums(float* matrix, int rows, int cols, Re
     }
 }
 
-// transfers: N*(N/blockdim)*1 + 1
-// ops: N*(N/blockdim)*1 + N*log2(blockdim)*1
+// geometric series ar^k, k:0->n
+// Sn = a(1-r^(n+1))/(1-r)
+// r = 2, a = 1, n = log2(blockdim)-1 --->  Sn = 2^log2(blockdim) - 1 = blockdim - 1
+// total ops for reduction in one row/col
+
+// transfers: (ReductionDirection::ALONG_COL ? cols : row)*( ReductionDirection::ALONG_COL ? rows : cols)/blockdim +  (ReductionDirection::ALONG_COL ? cols : row)*1   =  N + (ReductionDirection::ALONG_COL ? cols : row)*1
+// ops: (ReductionDirection::ALONG_COL ? cols : row)*(ReductionDirection::ALONG_COL ? rows : cols)/blockdim + (ReductionDirection::ALONG_COL ? cols : row)(blockdim-1)   = N + (ReductionDirection::ALONG_COL ? cols : row)(blockdim-1)
