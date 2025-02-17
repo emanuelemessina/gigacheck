@@ -2,6 +2,8 @@
 
 ABFT Matrix Multiplication of any size in CUDA
 
-## Paper
+## Paper & Presentation
 
-Available [here](doc/gigacheck.pdf)
+[Presentation](doc/gigacheck-presentation.pdf)
+
+[Paper](doc/gigacheck.pdf)
